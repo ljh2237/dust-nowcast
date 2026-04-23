@@ -1,36 +1,57 @@
 ﻿project:
-  name: DustRiskFormer-MVP
+  name: DustRiskFormer-CN-NW-MVP
   seed: 42
 
 region:
-  name: us_southwest
-  timezone: UTC
+  name: cn_northwest_corridor
+  display_name: China Northwest (Hexi Corridor-Northern Ningxia-Western Shaanbei)
+  display_name_cn: 中国西北（河西走廊-宁夏北部-陕北西段）
+  timezone: Asia/Shanghai
   start_date: 2023-01-01
   end_date: 2023-12-31
-  source_proxy_point:
-    lat: 35.0
-    lon: -115.0
+  dust_source_points:
+    - name: TenggerDesert
+      lat: 37.5
+      lon: 105.0
+    - name: BadainJaranDesert
+      lat: 39.7
+      lon: 102.2
+    - name: MuUsDesert
+      lat: 38.9
+      lon: 109.9
   stations:
-    - name: Phoenix
-      lat: 33.4484
-      lon: -112.0740
-      noaa_station: "72278023183"
-    - name: Tucson
-      lat: 32.2226
-      lon: -110.9747
-      noaa_station: "72274023160"
-    - name: ElPaso
-      lat: 31.7619
-      lon: -106.4850
-      noaa_station: "72270023044"
-    - name: Albuquerque
-      lat: 35.0844
-      lon: -106.6504
-      noaa_station: "72365023050"
-    - name: LasVegas
-      lat: 36.1699
-      lon: -115.1398
-      noaa_station: "72386023169"
+    - name: Yulin
+      lat: 38.2858
+      lon: 109.7343
+      noaa_station: "53772099999"
+    - name: Dingbian
+      lat: 37.5949
+      lon: 107.6015
+      noaa_station: "53663099999"
+    - name: Yinchuan
+      lat: 38.4872
+      lon: 106.2309
+      noaa_station: "53614099999"
+    - name: Lanzhou
+      lat: 36.0611
+      lon: 103.8343
+      noaa_station: "52889099999"
+    - name: Wuwei
+      lat: 37.9283
+      lon: 102.6340
+      noaa_station: "52679099999"
+    - name: Zhangye
+      lat: 38.9259
+      lon: 100.4498
+      noaa_station: "52652099999"
+    - name: Jiuquan
+      lat: 39.7432
+      lon: 98.5174
+      noaa_station: "52533099999"
+    - name: Jiayuguan
+      lat: 39.7720
+      lon: 98.2892
+      noaa_station: "52533099999"
 
 dataset:
   seq_len: 24
@@ -39,12 +60,20 @@ dataset:
     train: 0.7
     val: 0.15
     test: 0.15
-  wind_warning_threshold: 12.0
-  risk_class_thresholds: [0.35, 0.65]
+  wind_warning_threshold: 10.8
+  risk_class_thresholds: [0.35, 0.55, 0.75]
+  spring_months: [3, 4, 5]
+  risk_weights:
+    wind: 0.45
+    dry: 0.16
+    visibility: 0.10
+    soil: 0.10
+    spring: 0.07
+    source_proximity: 0.12
 
 training:
   batch_size: 32
-  epochs: 20
+  epochs: 16
   learning_rate: 0.001
   weight_decay: 0.0001
   patience: 5

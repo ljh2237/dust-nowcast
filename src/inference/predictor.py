@@ -23,6 +23,7 @@ class DustPredictor:
         self.stations = self.meta["stations"]
         self.station_ids = [s["station_id"] for s in self.stations]
         self.horizons = self.meta["horizons"]
+        self.risk_num_classes = int(self.meta.get("risk_num_classes", 3))
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -35,6 +36,7 @@ class DustPredictor:
             hidden_dim=int(config["model"]["hidden_dim"]),
             num_heads=int(config["model"]["num_heads"]),
             horizons=h,
+            num_risk_classes=self.risk_num_classes,
             dropout=float(config["model"]["dropout"]),
         ).to(self.device)
         ckpt = Path(config["paths"]["checkpoints_dir"]) / "dustriskformer_best.pt"

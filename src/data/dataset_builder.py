@@ -17,21 +17,10 @@ def _wind_to_uv(speed: pd.Series, direction_deg: pd.Series) -> Tuple[pd.Series, 
     return u, v
 
 
-def _risk_label(
-    future_wind: np.ndarray,
-    current_rh: np.ndarray,
-    current_visibility: np.ndarray,
-    current_soil_moisture: np.ndarray,
-    thresholds: List[float],
-) -> np.ndarray:
-    wind_norm = np.clip(future_wind / 20.0, 0.0, 1.5)
-    dry_score = (current_rh < 30.0).astype(float)
-    vis_score = (current_visibility < 5000.0).astype(float)
-    soil_dry = (current_soil_moisture < 0.15).astype(float)
-    score = 0.55 * wind_norm + 0.2 * dry_score + 0.15 * vis_score + 0.1 * soil_dry
+def _risk_label(score: np.ndarray, thresholds: List[float]) -> np.ndarray:
     out = np.zeros_like(score, dtype=np.int64)
-    out[score >= thresholds[0]] = 1
-    out[score >= thresholds[1]] = 2
+    for i, th in enumerate(thresholds):
+        out[score >= th] = i + 1
     return out
 
 
@@ -46,7 +35,7 @@ def _build_adj(stations: pd.DataFrame) -> np.ndarray:
                 float(stations.iloc[j]["lat"]),
                 float(stations.iloc[j]["lon"]),
             )
-            adj[i, j] = np.exp(-d / 500.0)
+            adj[i, j] = np.exp(-d / 450.0)
     row_sum = adj.sum(axis=1, keepdims=True)
     adj = adj / np.clip(row_sum, 1e-8, None)
     return adj.astype(np.float32)
@@ -60,6 +49,7 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
     obs = pd.read_parquet(raw_dir / "station_observations.parquet")
     bg = pd.read_parquet(raw_dir / "background_openmeteo.parquet")
     static = pd.read_csv(raw_dir / "static_features.csv")
+
     obs["station_id"] = obs["station_id"].astype(str)
     bg["station_id"] = bg["station_id"].astype(str)
     static["station_id"] = static["station_id"].astype(str)
@@ -88,12 +78,18 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
     )
     df = df.merge(static, on=["station_id", "station_name", "lat", "lon"], how="left")
 
+    if "pressure" not in df.columns:
+        df["pressure"] = np.nan
+    if "visibility" not in df.columns:
+        df["visibility"] = np.nan
+
     df["wind_speed"] = df["wind_speed"].fillna(df["bg_wind_speed"])
     df["wind_dir"] = df["wind_dir"].fillna(df["bg_wind_dir"])
     df["temperature"] = df["temperature"].fillna(df["bg_temperature"])
     df["relative_humidity"] = df["relative_humidity"].fillna(df["bg_relative_humidity"])
     df["pressure"] = df["pressure"].fillna(df["bg_surface_pressure"])
     df["precipitation"] = df["precipitation"].fillna(df["bg_precipitation"])
+    df["visibility"] = df["visibility"].fillna(df["bg_visibility"])
 
     df["u10"], df["v10"] = _wind_to_uv(df["wind_speed"], df["wind_dir"])
     df["bg_u10"], df["bg_v10"] = _wind_to_uv(df["bg_wind_speed"].fillna(0), df["bg_wind_dir"].fillna(0))
@@ -103,13 +99,14 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
     df["doy_cos"] = np.cos(2 * np.pi * df["time"].dt.dayofyear / 365.25)
 
     df = df.sort_values(["station_id", "time"]).reset_index(drop=True)
-    for c in [
+    fill_cols = [
         "wind_speed",
         "wind_dir",
         "temperature",
         "relative_humidity",
         "pressure",
         "precipitation",
+        "visibility",
         "bg_wind_speed",
         "bg_relative_humidity",
         "bg_surface_pressure",
@@ -120,9 +117,11 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         "v10",
         "bg_u10",
         "bg_v10",
-    ]:
+    ]
+    for c in fill_cols:
         df[c] = df.groupby("station_id")[c].transform(lambda s: s.interpolate(limit_direction="both"))
-        df[c] = df[c].fillna(df[c].median())
+        med = float(df[c].median()) if not np.isnan(df[c].median()) else 0.0
+        df[c] = df[c].fillna(med)
 
     features = [
         "wind_speed",
@@ -131,6 +130,7 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         "temperature",
         "relative_humidity",
         "pressure",
+        "visibility",
         "precipitation",
         "bg_wind_speed",
         "bg_wind_gust",
@@ -146,7 +146,13 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         "doy_sin",
         "doy_cos",
     ]
-    static_features = ["lat", "lon", "elevation", "distance_to_source_km"]
+
+    static_numeric_cols = [
+        c
+        for c in static.columns
+        if c not in {"station_id", "station_name", "nearest_source"} and np.issubdtype(static[c].dtype, np.number)
+    ]
+    static_features = static_numeric_cols
 
     stations = df[["station_id", "station_name", "lat", "lon"]].drop_duplicates().reset_index(drop=True)
     station_ids = stations["station_id"].tolist()
@@ -160,11 +166,12 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         sdf["station_name"] = stations.loc[station_to_idx[sid], "station_name"]
         sdf["lat"] = stations.loc[station_to_idx[sid], "lat"]
         sdf["lon"] = stations.loc[station_to_idx[sid], "lon"]
-        for c in features + ["wind_speed", "relative_humidity", "bg_visibility", "bg_soil_moisture"]:
+        for c in features + ["wind_speed", "relative_humidity", "visibility", "bg_soil_moisture"]:
             if c not in sdf.columns:
                 sdf[c] = np.nan
             sdf[c] = sdf[c].interpolate(limit_direction="both")
-            sdf[c] = sdf[c].fillna(sdf[c].median())
+            med = float(sdf[c].median()) if not np.isnan(sdf[c].median()) else 0.0
+            sdf[c] = sdf[c].fillna(med)
         static_row = static[static["station_id"] == sid].iloc[0]
         for c in static_features:
             sdf[c] = static_row[c]
@@ -175,6 +182,8 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
     seq_len = int(config["dataset"]["seq_len"])
     wind_warn_th = float(config["dataset"]["wind_warning_threshold"])
     risk_th = [float(x) for x in config["dataset"]["risk_class_thresholds"]]
+    spring_months = set(int(x) for x in config["dataset"].get("spring_months", [3, 4, 5]))
+    rw = config["dataset"].get("risk_weights", {})
 
     times = sorted(panel_df["time"].unique())
     n_time = len(times)
@@ -196,9 +205,16 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         feat_arr[idx, si, :] = sdf[features].to_numpy(dtype=np.float32)
         wind_arr[idx, si] = sdf["wind_speed"].to_numpy(dtype=np.float32)
         rh_arr[idx, si] = sdf["relative_humidity"].to_numpy(dtype=np.float32)
-        vis_arr[idx, si] = sdf["bg_visibility"].to_numpy(dtype=np.float32)
+        vis_arr[idx, si] = sdf["visibility"].to_numpy(dtype=np.float32)
         soil_arr[idx, si] = sdf["bg_soil_moisture"].to_numpy(dtype=np.float32)
         static_arr[si, :] = sdf[static_features].iloc[0].to_numpy(dtype=np.float32)
+
+    source_col = "source_proximity" if "source_proximity" in static_features else None
+    source_vec = None
+    if source_col:
+        source_vec = static_arr[:, static_features.index(source_col)]
+    else:
+        source_vec = np.zeros((n_station,), dtype=np.float32)
 
     X_list = []
     y_wind_list = []
@@ -212,19 +228,33 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         yw = []
         yr = []
         yb = []
+
+        month = pd.Timestamp(times[t]).month
+        spring_factor = 1.0 if month in spring_months else 0.0
+
         for h in horizons:
             fut_wind = wind_arr[t + h, :]
-            fut_risk = _risk_label(
-                future_wind=fut_wind,
-                current_rh=rh_arr[t - 1, :],
-                current_visibility=vis_arr[t - 1, :],
-                current_soil_moisture=soil_arr[t - 1, :],
-                thresholds=risk_th,
+            wind_norm = np.clip(fut_wind / 20.0, 0.0, 1.5)
+            dry_score = (rh_arr[t - 1, :] < 35.0).astype(float)
+            vis_score = (vis_arr[t - 1, :] < 8000.0).astype(float)
+            soil_dry = (soil_arr[t - 1, :] < 0.18).astype(float)
+            src = np.clip(source_vec, 0.0, 1.0)
+            score = (
+                float(rw.get("wind", 0.45)) * wind_norm
+                + float(rw.get("dry", 0.16)) * dry_score
+                + float(rw.get("visibility", 0.10)) * vis_score
+                + float(rw.get("soil", 0.10)) * soil_dry
+                + float(rw.get("spring", 0.07)) * spring_factor
+                + float(rw.get("source_proximity", 0.12)) * src
             )
-            fut_warn = ((fut_wind >= wind_warn_th) | (fut_risk >= 2)).astype(np.float32)
+            fut_risk = _risk_label(score, risk_th)
+            high_risk_level = len(risk_th)
+            fut_warn = ((fut_wind >= wind_warn_th) | (fut_risk >= high_risk_level - 1)).astype(np.float32)
+
             yw.append(fut_wind)
             yr.append(fut_risk)
             yb.append(fut_warn)
+
         X_list.append(x)
         y_wind_list.append(np.stack(yw, axis=1))
         y_risk_list.append(np.stack(yr, axis=1))
@@ -263,7 +293,6 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
         test_idx=split_idx["test"],
     )
 
-    # Tabular dataset for ML baselines (target horizon 3h, per station)
     h_idx = horizons.index(3) if 3 in horizons else 0
     rows = []
     for n in range(n_samples):
@@ -285,13 +314,20 @@ def build_processed_dataset(config: Dict, raw_dir: str | Path, processed_dir: st
     tab = pd.DataFrame(rows)
     tab.to_parquet(processed_dir / "dataset_tabular.parquet", index=False)
 
+    risk_flat = y_risk.reshape(-1)
+    risk_counts = {str(int(k)): int(v) for k, v in zip(*np.unique(risk_flat, return_counts=True))}
+
     meta = {
+        "region": config["region"]["name"],
+        "region_display": config["region"].get("display_name", config["region"]["name"]),
         "features": features,
         "static_features": static_features,
         "horizons": horizons,
         "seq_len": seq_len,
         "stations": stations.to_dict(orient="records"),
         "num_samples": int(n_samples),
+        "risk_num_classes": int(risk_flat.max() + 1),
+        "risk_label_distribution": risk_counts,
         "tensor_shape": {
             "X": list(X.shape),
             "y_wind": list(y_wind.shape),

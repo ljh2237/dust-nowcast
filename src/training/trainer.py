@@ -87,6 +87,8 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
 
     in_dim = bundle.X.shape[-1]
     horizons = bundle.y_wind.shape[-1]
+    risk_num_classes = int(bundle.y_risk.max() + 1)
+    region_name = config["region"].get("display_name", config["region"]["name"])
 
     if model_name == "dustriskformer":
         model = DustRiskFormer(
@@ -95,14 +97,15 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
             hidden_dim=int(config["model"]["hidden_dim"]),
             num_heads=int(config["model"]["num_heads"]),
             horizons=horizons,
+            num_risk_classes=risk_num_classes,
             dropout=float(config["model"]["dropout"]),
         )
         main_model = True
     elif model_name == "lstm":
-        model = LSTMBaseline(in_dim=in_dim, hidden_dim=64, horizons=horizons)
+        model = LSTMBaseline(in_dim=in_dim, hidden_dim=64, horizons=horizons, num_risk_classes=risk_num_classes)
         main_model = False
     elif model_name == "cnn_lstm":
-        model = CNNLSTMBaseline(in_dim=in_dim, hidden_dim=64, horizons=horizons)
+        model = CNNLSTMBaseline(in_dim=in_dim, hidden_dim=64, horizons=horizons, num_risk_classes=risk_num_classes)
         main_model = False
     else:
         raise ValueError(f"Unknown deep model: {model_name}")
@@ -180,9 +183,18 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     }
 
     save_loss_curve(train_losses, val_losses, results_dir / "plots" / f"loss_curve_{model_name}.png")
-    save_pred_vs_true(y_w_true, y_w_pred, results_dir / "plots" / f"pred_vs_true_{model_name}.png", f"{model_name} wind prediction")
+    save_pred_vs_true(
+        y_w_true,
+        y_w_pred,
+        results_dir / "plots" / f"pred_vs_true_{model_name}.png",
+        f"{region_name} {model_name} wind prediction",
+    )
     cm = confusion(y_r_true, y_r_pred)
-    save_confusion_matrix(cm, results_dir / "plots" / f"confusion_risk_{model_name}.png", f"{model_name} risk confusion")
+    save_confusion_matrix(
+        cm,
+        results_dir / "plots" / f"confusion_risk_{model_name}.png",
+        f"{region_name} {model_name} risk confusion",
+    )
 
     pred_df = pd.DataFrame(
         {

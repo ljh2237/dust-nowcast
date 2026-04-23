@@ -1,4 +1,6 @@
 {
+  "region": "cn_northwest_corridor",
+  "region_display": "China Northwest (Hexi Corridor-Northern Ningxia-Western Shaanbei)",
   "features": [
     "wind_speed",
     "u10",
@@ -6,6 +8,7 @@
     "temperature",
     "relative_humidity",
     "pressure",
+    "visibility",
     "precipitation",
     "bg_wind_speed",
     "bg_wind_gust",
@@ -25,7 +28,9 @@
     "lat",
     "lon",
     "elevation",
-    "distance_to_source_km"
+    "terrain_roughness",
+    "distance_to_source_km",
+    "source_proximity"
   ],
   "horizons": [
     1,
@@ -35,58 +40,84 @@
   "seq_len": 24,
   "stations": [
     {
-      "station_id": "72270023044",
-      "station_name": "ElPaso",
-      "lat": 31.7619,
-      "lon": -106.485
+      "station_id": "52533099999_Jiayuguan",
+      "station_name": "Jiayuguan",
+      "lat": 39.772,
+      "lon": 98.2892
     },
     {
-      "station_id": "72274023160",
-      "station_name": "Tucson",
-      "lat": 32.2226,
-      "lon": -110.9747
+      "station_id": "52533099999_Jiuquan",
+      "station_name": "Jiuquan",
+      "lat": 39.7432,
+      "lon": 98.5174
     },
     {
-      "station_id": "72278023183",
-      "station_name": "Phoenix",
-      "lat": 33.4484,
-      "lon": -112.074
+      "station_id": "52652099999_Zhangye",
+      "station_name": "Zhangye",
+      "lat": 38.9259,
+      "lon": 100.4498
     },
     {
-      "station_id": "72365023050",
-      "station_name": "Albuquerque",
-      "lat": 35.0844,
-      "lon": -106.6504
+      "station_id": "52679099999_Wuwei",
+      "station_name": "Wuwei",
+      "lat": 37.9283,
+      "lon": 102.634
     },
     {
-      "station_id": "72386023169",
-      "station_name": "LasVegas",
-      "lat": 36.1699,
-      "lon": -115.1398
+      "station_id": "52889099999_Lanzhou",
+      "station_name": "Lanzhou",
+      "lat": 36.0611,
+      "lon": 103.8343
+    },
+    {
+      "station_id": "53614099999_Yinchuan",
+      "station_name": "Yinchuan",
+      "lat": 38.4872,
+      "lon": 106.2309
+    },
+    {
+      "station_id": "53663099999_Dingbian",
+      "station_name": "Dingbian",
+      "lat": 37.5949,
+      "lon": 107.6015
+    },
+    {
+      "station_id": "53772099999_Yulin",
+      "station_name": "Yulin",
+      "lat": 38.2858,
+      "lon": 109.7343
     }
   ],
   "num_samples": 8730,
+  "risk_num_classes": 4,
+  "risk_label_distribution": {
+    "0": 14349,
+    "1": 82954,
+    "2": 74734,
+    "3": 37483
+  },
   "tensor_shape": {
     "X": [
       8730,
       24,
-      5,
-      20
+      8,
+      21
     ],
     "y_wind": [
       8730,
-      5,
+      8,
       3
     ],
     "y_risk": [
       8730,
-      5,
+      8,
       3
     ],
     "y_warn": [
       8730,
-      5,
+      8,
       3
     ]
-  }
+  },
+  "region_display_cn": "中国西北（河西走廊-宁夏北部-陕北西段）"
 }

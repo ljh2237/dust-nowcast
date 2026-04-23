@@ -19,7 +19,7 @@ class PredictBatchRequest(BaseModel):
     station_ids: List[str]
 
 
-app = FastAPI(title="DustRiskFormer API", version="0.1.0")
+app = FastAPI(title="中国西北沙尘短临预测 API", version="0.2.0")
 _config = load_config("configs/default.yaml")
 _predictor = DustPredictor(_config)
 

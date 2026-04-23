@@ -1,9 +1,10 @@
 ﻿from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -15,7 +16,22 @@ class StationSpec:
     name: str
     lat: float
     lon: float
-    noaa_station: str
+    noaa_station: Optional[str] = None
+
+
+def _safe_get_json(url: str, params: Dict, timeout: int = 60, retries: int = 3) -> Dict:
+    last_err = None
+    for i in range(retries):
+        try:
+            r = requests.get(url, params=params, timeout=timeout)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            last_err = e
+            time.sleep(1.2 * (i + 1))
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("Unknown request error")
 
 
 def _parse_noaa_numeric(value: str | float | int | None, scale: float = 1.0) -> float:
@@ -43,18 +59,16 @@ def _download_noaa_global_hourly(station_id: str, start: str, end: str) -> pd.Da
         "includeStationLocation": "1",
         "units": "metric",
     }
-    r = requests.get(url, params=params, timeout=90)
-    r.raise_for_status()
-    rows = r.json()
+    rows = _safe_get_json(url, params=params, timeout=90, retries=4)
     if not isinstance(rows, list) or len(rows) == 0:
         raise RuntimeError(f"NOAA global-hourly empty for station={station_id}")
 
     df = pd.DataFrame(rows)
-    # Key fields in NOAA global-hourly
-    # DATE, TMP, DEW, SLP, VISIB, WDSP, MXSPD, PRCP
-    out = pd.DataFrame()
+
     def col(name: str) -> pd.Series:
         return df[name] if name in df.columns else pd.Series([np.nan] * len(df))
+
+    out = pd.DataFrame()
     out["time"] = pd.to_datetime(df["DATE"], utc=True, errors="coerce")
     out["temperature"] = col("TMP").apply(lambda x: _parse_noaa_numeric(x, scale=10.0))
     out["dewpoint"] = col("DEW").apply(lambda x: _parse_noaa_numeric(x, scale=10.0))
@@ -65,12 +79,11 @@ def _download_noaa_global_hourly(station_id: str, start: str, end: str) -> pd.Da
     out["precipitation"] = col("PRCP").apply(lambda x: _parse_noaa_numeric(x, scale=10.0))
     out["wind_dir"] = col("WND").apply(lambda x: _parse_noaa_numeric(str(x).split(",")[0], scale=1.0))
 
-    # Relative humidity from temp/dewpoint approximation
     t = out["temperature"]
     td = out["dewpoint"]
     es = np.exp((17.625 * t) / (243.04 + t))
     ed = np.exp((17.625 * td) / (243.04 + td))
-    out["relative_humidity"] = 100.0 * ed / es
+    out["relative_humidity"] = np.clip(100.0 * ed / es, 0.0, 100.0)
 
     out = out.dropna(subset=["time"]).copy()
     out = out.sort_values("time").groupby(pd.Grouper(key="time", freq="1H")).mean(numeric_only=True).reset_index()
@@ -98,9 +111,7 @@ def _fetch_openmeteo_hourly(lat: float, lon: float, start: str, end: str) -> pd.
         "hourly": ",".join(hourly_vars),
         "timezone": "UTC",
     }
-    r = requests.get(url, params=params, timeout=90)
-    r.raise_for_status()
-    payload = r.json()
+    payload = _safe_get_json(url, params=params, timeout=90, retries=4)
     if "hourly" not in payload:
         raise RuntimeError(f"Open-Meteo response missing hourly: {payload}")
 
@@ -113,14 +124,47 @@ def _fetch_openmeteo_hourly(lat: float, lon: float, start: str, end: str) -> pd.
     return out
 
 
+def _openmeteo_as_observation(bg_df: pd.DataFrame) -> pd.DataFrame:
+    obs = pd.DataFrame()
+    obs["time"] = bg_df["time"]
+    obs["wind_speed"] = bg_df["bg_wind_speed"]
+    obs["wind_dir"] = bg_df["bg_wind_dir"]
+    obs["temperature"] = bg_df["bg_temperature"]
+    obs["relative_humidity"] = bg_df["bg_relative_humidity"]
+    obs["pressure"] = bg_df["bg_surface_pressure"]
+    obs["precipitation"] = bg_df["bg_precipitation"]
+    obs["visibility"] = bg_df["bg_visibility"]
+    obs["wind_gust"] = bg_df["bg_wind_gust"]
+    return obs
+
+
 def _fetch_openmeteo_elevation(lat: float, lon: float) -> float:
     url = "https://api.open-meteo.com/v1/elevation"
     params = {"latitude": lat, "longitude": lon}
-    r = requests.get(url, params=params, timeout=30)
-    r.raise_for_status()
-    payload = r.json()
-    elevs = payload.get("elevation", [np.nan])
-    return float(elevs[0]) if elevs else float("nan")
+    try:
+        payload = _safe_get_json(url, params=params, timeout=30, retries=4)
+        elevs = payload.get("elevation", [np.nan])
+        return float(elevs[0]) if elevs else float("nan")
+    except Exception:
+        return float("nan")
+
+
+def _terrain_roughness_proxy(lat: float, lon: float, delta: float = 0.15) -> float:
+    pts = [(lat, lon), (lat + delta, lon), (lat - delta, lon), (lat, lon + delta), (lat, lon - delta)]
+    vals = []
+    for la, lo in pts:
+        vals.append(_fetch_openmeteo_elevation(la, lo))
+    arr = np.array(vals, dtype=np.float32)
+    return float(np.nanstd(arr))
+
+
+def _nearest_source_distance(lat: float, lon: float, sources: List[Dict]) -> Tuple[float, str]:
+    dists = []
+    for s in sources:
+        d = haversine_km(lat, lon, float(s["lat"]), float(s["lon"]))
+        dists.append((d, str(s["name"])))
+    dists = sorted(dists, key=lambda x: x[0])
+    return float(dists[0][0]), dists[0][1]
 
 
 def download_all(config: Dict, output_dir: str | Path) -> None:
@@ -130,21 +174,17 @@ def download_all(config: Dict, output_dir: str | Path) -> None:
     start = config["region"]["start_date"]
     end = config["region"]["end_date"]
     specs = [StationSpec(**x) for x in config["region"]["stations"]]
-    source_lat = float(config["region"]["source_proxy_point"]["lat"])
-    source_lon = float(config["region"]["source_proxy_point"]["lon"])
+    sources = config["region"]["dust_source_points"]
 
     obs_frames: List[pd.DataFrame] = []
     bg_frames: List[pd.DataFrame] = []
     station_meta: List[Dict] = []
     static_rows: List[Dict] = []
+    noaa_ok = 0
+    openmeteo_fallback = 0
 
     for spec in specs:
-        obs = _download_noaa_global_hourly(spec.noaa_station, start, end)
-        obs["station_id"] = spec.noaa_station
-        obs["station_name"] = spec.name
-        obs["lat"] = spec.lat
-        obs["lon"] = spec.lon
-        obs_frames.append(obs)
+        sid = f"{spec.noaa_station}_{spec.name}" if spec.noaa_station else f"OM_{spec.name}"
 
         bg = _fetch_openmeteo_hourly(spec.lat, spec.lon, start, end)
         bg = bg.rename(
@@ -173,31 +213,60 @@ def download_all(config: Dict, output_dir: str | Path) -> None:
         ]:
             if c not in bg.columns:
                 bg[c] = np.nan
-        bg["station_id"] = spec.noaa_station
+        bg["station_id"] = sid
         bg["station_name"] = spec.name
         bg["lat"] = spec.lat
         bg["lon"] = spec.lon
         bg_frames.append(bg)
 
+        obs_source = "openmeteo_fallback"
+        obs = None
+        if spec.noaa_station:
+            try:
+                obs = _download_noaa_global_hourly(spec.noaa_station, start, end)
+                obs_source = "noaa_global_hourly"
+                noaa_ok += 1
+            except Exception:
+                obs = None
+
+        if obs is None or len(obs) < 24 * 7:
+            obs = _openmeteo_as_observation(bg)
+            openmeteo_fallback += 1
+            obs_source = "openmeteo_fallback"
+
+        obs["station_id"] = sid
+        obs["station_name"] = spec.name
+        obs["lat"] = spec.lat
+        obs["lon"] = spec.lon
+        obs["obs_source"] = obs_source
+        obs_frames.append(obs)
+
         elevation = _fetch_openmeteo_elevation(spec.lat, spec.lon)
-        dist_to_source = haversine_km(spec.lat, spec.lon, source_lat, source_lon)
+        terrain_roughness = _terrain_roughness_proxy(spec.lat, spec.lon)
+        dist_to_source, source_name = _nearest_source_distance(spec.lat, spec.lon, sources)
+        source_proximity = float(np.exp(-dist_to_source / 400.0))
+
         station_meta.append(
             {
-                "station_id": spec.noaa_station,
+                "station_id": sid,
                 "station_name": spec.name,
                 "lat": spec.lat,
                 "lon": spec.lon,
                 "elevation": elevation,
+                "obs_source": obs_source,
             }
         )
         static_rows.append(
             {
-                "station_id": spec.noaa_station,
+                "station_id": sid,
                 "station_name": spec.name,
                 "lat": spec.lat,
                 "lon": spec.lon,
                 "elevation": elevation,
+                "terrain_roughness": terrain_roughness,
                 "distance_to_source_km": dist_to_source,
+                "nearest_source": source_name,
+                "source_proximity": source_proximity,
             }
         )
 
@@ -215,10 +284,15 @@ def download_all(config: Dict, output_dir: str | Path) -> None:
         json.dump(
             {
                 "region": config["region"]["name"],
+                "region_display": config["region"].get("display_name", config["region"]["name"]),
                 "start_date": start,
                 "end_date": end,
                 "stations": station_meta,
-                "source": ["NOAA NCEI Global Hourly", "Open-Meteo Archive API", "Open-Meteo Elevation API"],
+                "source": ["NOAA NCEI Global Hourly (priority)", "Open-Meteo Archive API", "Open-Meteo Elevation API"],
+                "download_stats": {
+                    "noaa_success_station_count": noaa_ok,
+                    "openmeteo_fallback_station_count": openmeteo_fallback,
+                },
             },
             f,
             indent=2,

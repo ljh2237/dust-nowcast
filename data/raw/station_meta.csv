@@ -1,6 +1,9 @@
-station_id,station_name,lat,lon,elevation
-72278023183,Phoenix,33.4484,-112.074,333.0
-72274023160,Tucson,32.2226,-110.9747,722.0
-72270023044,ElPaso,31.7619,-106.485,1135.0
-72365023050,Albuquerque,35.0844,-106.6504,1515.0
-72386023169,LasVegas,36.1699,-115.1398,620.0
+station_id,station_name,lat,lon,elevation,obs_source
+53772099999_Yulin,Yulin,38.2858,109.7343,1081.0,noaa_global_hourly
+53663099999_Dingbian,Dingbian,37.5949,107.6015,1373.0,openmeteo_fallback
+53614099999_Yinchuan,Yinchuan,38.4872,106.2309,1109.0,noaa_global_hourly
+52889099999_Lanzhou,Lanzhou,36.0611,103.8343,1520.0,openmeteo_fallback
+52679099999_Wuwei,Wuwei,37.9283,102.634,1533.0,openmeteo_fallback
+52652099999_Zhangye,Zhangye,38.9259,100.4498,1485.0,noaa_global_hourly
+52533099999_Jiuquan,Jiuquan,39.7432,98.5174,1465.0,noaa_global_hourly
+52533099999_Jiayuguan,Jiayuguan,39.772,98.2892,1660.0,noaa_global_hourly
