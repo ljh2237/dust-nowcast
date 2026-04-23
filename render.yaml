@@ -1,0 +1,10 @@
+﻿services:
+  - type: web
+    name: cn-nw-dust-nowcast
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"

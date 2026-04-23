@@ -15,6 +15,7 @@ class TensorDatasetMTL(Dataset):
         self.y_wind = y_wind[indices]
         self.y_risk = y_risk[indices]
         self.y_warn = y_warn[indices]
+        self.indices = indices
 
     def __len__(self) -> int:
         return len(self.X)
@@ -25,6 +26,7 @@ class TensorDatasetMTL(Dataset):
             torch.tensor(self.y_wind[idx], dtype=torch.float32),
             torch.tensor(self.y_risk[idx], dtype=torch.long),
             torch.tensor(self.y_warn[idx], dtype=torch.float32),
+            torch.tensor(self.indices[idx], dtype=torch.long),
         )
 
 

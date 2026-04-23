@@ -1,0 +1,19 @@
+﻿version: "3.9"
+services:
+  api:
+    build: .
+    command: python scripts/run_api.py
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+  web:
+    build: .
+    command: streamlit run src/webapp/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    depends_on:
+      - api

@@ -52,7 +52,16 @@ class DustPredictor:
             raise ValueError(f"Unknown station_id={station_id}. Allowed: {self.station_ids}")
         return self.station_ids.index(station_id)
 
-    def predict_single(self, station_id: str, feature_overrides: Optional[Dict[str, float]] = None) -> Dict:
+    def _forward_once(self, x_tensor: torch.Tensor, mc_dropout: bool = False) -> Dict:
+        if mc_dropout:
+            self.model.train()
+        else:
+            self.model.eval()
+        with torch.no_grad():
+            out = self.model(x_tensor, self.X_static, self.adj)
+        return out
+
+    def predict_single(self, station_id: str, feature_overrides: Optional[Dict[str, float]] = None, mc_samples: int = 20) -> Dict:
         si = self._station_idx(station_id)
         x = self.X[-1:].copy()
         if feature_overrides:
@@ -62,17 +71,27 @@ class DustPredictor:
                     fi = feat_names.index(k)
                     x[0, -1, si, fi] = float(v)
 
-        with torch.no_grad():
-            out = self.model(
-                torch.tensor(x, dtype=torch.float32, device=self.device),
-                self.X_static,
-                self.adj,
-            )
+        x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device)
+        out = self._forward_once(x_tensor, mc_dropout=False)
 
         wind = out["wind"].cpu().numpy()[0, si, :]
         risk_logits = out["risk_logits"].cpu().numpy()[0, si, :, :]
         risk_class = risk_logits.argmax(axis=-1)
         warn_prob = torch.sigmoid(out["warn_logit"]).cpu().numpy()[0, si, :]
+
+        # Uncertainty: MC Dropout interval for wind and warning probability
+        mc_winds = []
+        mc_warn = []
+        for _ in range(max(mc_samples, 5)):
+            o = self._forward_once(x_tensor, mc_dropout=True)
+            mc_winds.append(o["wind"].cpu().numpy()[0, si, :])
+            mc_warn.append(torch.sigmoid(o["warn_logit"]).cpu().numpy()[0, si, :])
+        mc_winds = np.stack(mc_winds, axis=0)
+        mc_warn = np.stack(mc_warn, axis=0)
+        wind_lo = np.percentile(mc_winds, 10, axis=0)
+        wind_hi = np.percentile(mc_winds, 90, axis=0)
+        warn_lo = np.percentile(mc_warn, 10, axis=0)
+        warn_hi = np.percentile(mc_warn, 90, axis=0)
 
         horizon_results = []
         for i, h in enumerate(self.horizons):
@@ -80,8 +99,12 @@ class DustPredictor:
                 {
                     "horizon_hour": int(h),
                     "wind_speed_pred": float(wind[i]),
+                    "wind_speed_p10": float(wind_lo[i]),
+                    "wind_speed_p90": float(wind_hi[i]),
                     "risk_level": int(risk_class[i]),
                     "warning_probability": float(warn_prob[i]),
+                    "warning_probability_p10": float(warn_lo[i]),
+                    "warning_probability_p90": float(warn_hi[i]),
                 }
             )
 

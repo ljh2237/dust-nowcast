@@ -1,0 +1,58 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>中国西北沙尘短临预测系统</title>
+  <style>
+    body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f7f9fc;color:#1f2937}
+    header{background:linear-gradient(120deg,#0f766e,#1d4ed8);color:#fff;padding:28px}
+    main{max-width:980px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:14px}
+    h1,h2{margin:0 0 10px}
+    ul{margin:6px 0 0 18px}
+    code{background:#eef2ff;padding:2px 6px;border-radius:6px}
+    a{color:#1d4ed8;text-decoration:none}
+  </style>
+</head>
+<body>
+<header>
+  <h1>机制约束下的多源时空融合沙尘暴短临预测系统</h1>
+  <div>中国西北 · 0-6 小时短临预测 · 风速 + 风险等级 + 预警概率 + 可解释性</div>
+</header>
+<main>
+  <section class="card">
+    <h2>产品定位</h2>
+    <ul>
+      <li>区域：河西走廊—宁夏北部—陕北西段</li>
+      <li>用户：政府、交通、农业、园区、企业</li>
+      <li>角色：国家/省级业务预报“最后一公里”增强</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>访问方式</h2>
+    <ul>
+      <li>仓库主页：<a href="https://github.com/ljh2237/dust-nowcast" target="_blank">github.com/ljh2237/dust-nowcast</a></li>
+      <li>本地动态产品：<code>python scripts/run_api.py</code> + <code>python scripts/run_streamlit.py</code></li>
+      <li>接口文档：<code>http://127.0.0.1:8000/docs</code></li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>输出能力</h2>
+    <ul>
+      <li>未来 1h/3h/6h 风速预测</li>
+      <li>沙尘风险等级分类</li>
+      <li>预警阈值触发概率（含置信区间）</li>
+      <li>变量级/时间级/空间级解释结果</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>说明</h2>
+    <div>该页面为 GitHub Pages 静态入口；完整交互式预测请使用 Streamlit 动态服务。</div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "model": "dustriskformer",
+  "event_level_macro": {
+    "event_hit_rate": 0.764261337689367,
+    "onset_lead_error": 41.277066816824565,
+    "duration_error": 75.03938759181429,
+    "crossing_f1": 0.664693080739725
+  }
+}

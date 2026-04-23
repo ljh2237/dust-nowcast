@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import joblib
 import numpy as np
@@ -31,9 +31,10 @@ def _eval_epoch(model, loader, device, x_static, adj, main_model: bool = True):
     preds_w, trues_w = [], []
     preds_r, trues_r = [], []
     preds_b, trues_b, probs_b = [], [], []
+    sample_idx = []
 
     with torch.no_grad():
-        for x, y_w, y_r, y_b in loader:
+        for x, y_w, y_r, y_b, idx in loader:
             x = x.to(device)
             y_w = y_w.to(device)
             y_r = y_r.to(device)
@@ -56,6 +57,7 @@ def _eval_epoch(model, loader, device, x_static, adj, main_model: bool = True):
             probs_b.append(p)
             preds_b.append((p >= 0.5).astype(np.int64))
             trues_b.append(y_b.cpu().numpy().astype(np.int64))
+            sample_idx.append(idx.numpy())
 
     return {
         "loss": total / max(count, 1),
@@ -66,6 +68,7 @@ def _eval_epoch(model, loader, device, x_static, adj, main_model: bool = True):
         "y_b_true": np.concatenate(trues_b, axis=0),
         "y_b_pred": np.concatenate(preds_b, axis=0),
         "y_b_prob": np.concatenate(probs_b, axis=0),
+        "sample_idx": np.concatenate(sample_idx, axis=0),
     }
 
 
@@ -123,7 +126,7 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
         model.train()
         run_loss = 0.0
         seen = 0
-        for x, y_w, y_r, y_b in train_loader:
+        for x, y_w, y_r, y_b, _ in train_loader:
             x = x.to(device)
             y_w = y_w.to(device)
             y_r = y_r.to(device)
@@ -208,6 +211,7 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
         }
     )
     pred_df.to_csv(results_dir / f"predictions_{model_name}.csv", index=False)
+    _export_detailed_predictions(results_dir, processed_dir, model_name, test_pack)
 
     with (results_dir / f"metrics_{model_name}.json").open("w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
@@ -215,7 +219,7 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     # Save attention tensors for explainability on main model
     if model_name == "dustriskformer":
         model.eval()
-        x0, _, _, _ = next(iter(test_loader))
+        x0, _, _, _, _ = next(iter(test_loader))
         x0 = x0[:1].to(device)
         with torch.no_grad():
             out = model(x0, x_static, adj)
@@ -223,6 +227,42 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
         np.save(results_dir / "graph_attention.npy", out["graph_attention"].cpu().numpy())
 
     return metrics
+
+
+def _export_detailed_predictions(results_dir: Path, processed_dir: Path, model_name: str, test_pack: Dict) -> None:
+    meta = json.loads((processed_dir / "dataset_meta.json").read_text(encoding="utf-8"))
+    stations = [s["station_id"] for s in meta["stations"]]
+    horizons = [int(h) for h in meta["horizons"]]
+
+    y_w_true = test_pack["y_w_true"]
+    y_w_pred = test_pack["y_w_pred"]
+    y_r_true = test_pack["y_r_true"]
+    y_r_pred = test_pack["y_r_pred"]
+    y_b_true = test_pack["y_b_true"]
+    y_b_pred = test_pack["y_b_pred"]
+    y_b_prob = test_pack["y_b_prob"]
+    idxs = test_pack["sample_idx"]
+
+    rows = []
+    n_sample = y_w_true.shape[0]
+    for i in range(n_sample):
+        for s_i, sid in enumerate(stations):
+            for h_i, h in enumerate(horizons):
+                rows.append(
+                    {
+                        "sample_idx": int(idxs[i]),
+                        "station_id": sid,
+                        "horizon_hour": h,
+                        "y_wind_true": float(y_w_true[i, s_i, h_i]),
+                        "y_wind_pred": float(y_w_pred[i, s_i, h_i]),
+                        "y_risk_true": int(y_r_true[i, s_i, h_i]),
+                        "y_risk_pred": int(y_r_pred[i, s_i, h_i]),
+                        "y_warn_true": int(y_b_true[i, s_i, h_i]),
+                        "y_warn_pred": int(y_b_pred[i, s_i, h_i]),
+                        "y_warn_prob": float(y_b_prob[i, s_i, h_i]),
+                    }
+                )
+    pd.DataFrame(rows).to_csv(results_dir / f"predictions_detailed_{model_name}.csv", index=False)
 
 
 def train_ml_baselines(config: Dict) -> Dict:
