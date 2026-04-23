@@ -1,0 +1,65 @@
+﻿project:
+  name: DustRiskFormer-MVP
+  seed: 42
+
+region:
+  name: us_southwest
+  timezone: UTC
+  start_date: 2023-01-01
+  end_date: 2023-12-31
+  source_proxy_point:
+    lat: 35.0
+    lon: -115.0
+  stations:
+    - name: Phoenix
+      lat: 33.4484
+      lon: -112.0740
+      noaa_station: "72278023183"
+    - name: Tucson
+      lat: 32.2226
+      lon: -110.9747
+      noaa_station: "72274023160"
+    - name: ElPaso
+      lat: 31.7619
+      lon: -106.4850
+      noaa_station: "72270023044"
+    - name: Albuquerque
+      lat: 35.0844
+      lon: -106.6504
+      noaa_station: "72365023050"
+    - name: LasVegas
+      lat: 36.1699
+      lon: -115.1398
+      noaa_station: "72386023169"
+
+dataset:
+  seq_len: 24
+  horizons: [1, 3, 6]
+  split:
+    train: 0.7
+    val: 0.15
+    test: 0.15
+  wind_warning_threshold: 12.0
+  risk_class_thresholds: [0.35, 0.65]
+
+training:
+  batch_size: 32
+  epochs: 20
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  patience: 5
+  num_workers: 0
+  device: auto
+
+model:
+  name: DustRiskFormer
+  hidden_dim: 64
+  num_heads: 4
+  dropout: 0.1
+
+paths:
+  raw_dir: data/raw
+  interim_dir: data/interim
+  processed_dir: data/processed
+  results_dir: results
+  checkpoints_dir: results/checkpoints

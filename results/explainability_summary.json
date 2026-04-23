@@ -1,0 +1,5 @@
+{
+  "temporal_attention_plot": "results\\plots\\temporal_attention_heatmap.png",
+  "graph_attention_plot": "results\\plots\\graph_attention_heatmap.png",
+  "rf_feature_importance_plot": "results\\plots\\rf_feature_importance.png"
+}

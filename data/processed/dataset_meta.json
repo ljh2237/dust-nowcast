@@ -1,0 +1,92 @@
+{
+  "features": [
+    "wind_speed",
+    "u10",
+    "v10",
+    "temperature",
+    "relative_humidity",
+    "pressure",
+    "precipitation",
+    "bg_wind_speed",
+    "bg_wind_gust",
+    "bg_u10",
+    "bg_v10",
+    "bg_temperature",
+    "bg_relative_humidity",
+    "bg_surface_pressure",
+    "bg_soil_moisture",
+    "bg_visibility",
+    "hour_sin",
+    "hour_cos",
+    "doy_sin",
+    "doy_cos"
+  ],
+  "static_features": [
+    "lat",
+    "lon",
+    "elevation",
+    "distance_to_source_km"
+  ],
+  "horizons": [
+    1,
+    3,
+    6
+  ],
+  "seq_len": 24,
+  "stations": [
+    {
+      "station_id": "72270023044",
+      "station_name": "ElPaso",
+      "lat": 31.7619,
+      "lon": -106.485
+    },
+    {
+      "station_id": "72274023160",
+      "station_name": "Tucson",
+      "lat": 32.2226,
+      "lon": -110.9747
+    },
+    {
+      "station_id": "72278023183",
+      "station_name": "Phoenix",
+      "lat": 33.4484,
+      "lon": -112.074
+    },
+    {
+      "station_id": "72365023050",
+      "station_name": "Albuquerque",
+      "lat": 35.0844,
+      "lon": -106.6504
+    },
+    {
+      "station_id": "72386023169",
+      "station_name": "LasVegas",
+      "lat": 36.1699,
+      "lon": -115.1398
+    }
+  ],
+  "num_samples": 8730,
+  "tensor_shape": {
+    "X": [
+      8730,
+      24,
+      5,
+      20
+    ],
+    "y_wind": [
+      8730,
+      5,
+      3
+    ],
+    "y_risk": [
+      8730,
+      5,
+      3
+    ],
+    "y_warn": [
+      8730,
+      5,
+      3
+    ]
+  }
+}

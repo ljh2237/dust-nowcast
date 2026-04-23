@@ -1,0 +1,47 @@
+{
+  "region": "us_southwest",
+  "start_date": "2023-01-01",
+  "end_date": "2023-12-31",
+  "stations": [
+    {
+      "station_id": "72278023183",
+      "station_name": "Phoenix",
+      "lat": 33.4484,
+      "lon": -112.074,
+      "elevation": 333.0
+    },
+    {
+      "station_id": "72274023160",
+      "station_name": "Tucson",
+      "lat": 32.2226,
+      "lon": -110.9747,
+      "elevation": 722.0
+    },
+    {
+      "station_id": "72270023044",
+      "station_name": "ElPaso",
+      "lat": 31.7619,
+      "lon": -106.485,
+      "elevation": 1135.0
+    },
+    {
+      "station_id": "72365023050",
+      "station_name": "Albuquerque",
+      "lat": 35.0844,
+      "lon": -106.6504,
+      "elevation": 1515.0
+    },
+    {
+      "station_id": "72386023169",
+      "station_name": "LasVegas",
+      "lat": 36.1699,
+      "lon": -115.1398,
+      "elevation": 620.0
+    }
+  ],
+  "source": [
+    "NOAA NCEI Global Hourly",
+    "Open-Meteo Archive API",
+    "Open-Meteo Elevation API"
+  ]
+}
