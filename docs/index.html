@@ -3,94 +3,200 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>中国西北沙尘暴短临预测系统 - 交互演示版</title>
+  <title>Dust Nowcast CN-NW | 中国西北沙尘短临预测产品</title>
+  <meta name="description" content="中国西北0-6小时沙尘短临预测产品官网：风速、风险等级、预警概率、可解释性。" />
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 </head>
 <body>
-  <header class="header">
-    <h1 class="title">机制约束下的多源时空融合沙尘暴短临预测系统</h1>
-    <div class="subtitle">中国西北 · 0–6小时短时临近预测 · 风速 + 风险等级 + 预警概率 + 可解释性</div>
-    <div class="badges">
-      <span class="badge">服务对象：政府/交通/农业/园区/企业</span>
-      <span class="badge">定位：最后一公里辅助决策增强</span>
-      <span class="badge">区域：河西走廊—宁夏北部—陕北西段</span>
-    </div>
+  <div class="bg-grid"></div>
+  <header class="topbar">
+    <div class="brand">Dust Nowcast CN-NW</div>
+    <nav>
+      <a href="#hero">首页</a>
+      <a href="#capabilities">能力</a>
+      <a href="#results">结果</a>
+      <a href="#demo">在线演示</a>
+      <a href="#docs">文档</a>
+    </nav>
   </header>
 
-  <main class="container">
-    <div class="grid">
-      <section class="panel">
-        <div class="section-title">实时演示预测</div>
-        <label for="stationSelect">站点</label>
-        <select id="stationSelect"></select>
-
-        <label for="windInput">当前风速输入 (m/s)</label>
-        <input id="windInput" type="number" min="0" step="0.5" value="8" />
-
-        <label for="rhInput">当前相对湿度输入 (%)</label>
-        <input id="rhInput" type="number" min="0" max="100" step="1" value="35" />
-
-        <button id="runBtn" class="btn">运行演示预测</button>
-        <div class="note" style="margin-top:10px;">注：GitHub Pages 为前端演示引擎，基于模型结果快照进行交互推演。</div>
-
-        <hr style="border-color:#25395d;margin:14px 0;">
-        <div class="section-title">核心指标</div>
-        <div class="kpi-grid">
-          <div class="kpi"><div class="n">MAE</div><div id="kpiMae" class="v">-</div></div>
-          <div class="kpi"><div class="n">RMSE</div><div id="kpiRmse" class="v">-</div></div>
-          <div class="kpi"><div class="n">R²</div><div id="kpiR2" class="v">-</div></div>
-          <div class="kpi"><div class="n">事件命中率</div><div id="kpiHit" class="v">-</div></div>
+  <main>
+    <section id="hero" class="hero section">
+      <div class="hero-left">
+        <div class="chip">中国西北 · 0–6小时短临</div>
+        <h1>机制约束下的多源时空融合<br/>沙尘暴短临预测系统</h1>
+        <p>
+          面向河西走廊—宁夏北部—陕北西段，输出风速预测、风险等级、预警概率与可解释性结果，
+          服务政府、交通、农业、园区、企业的最后一公里辅助决策。
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" id="ctaDemo" href="#demo">在线体验</a>
+          <a class="btn btn-ghost" id="ctaApi" href="#api">API 文档</a>
+          <a class="btn btn-ghost" href="https://github.com/ljh2237/dust-nowcast" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a class="btn btn-ghost" href="https://github.com/ljh2237/dust-nowcast/blob/main/DEPLOYMENT.md" target="_blank" rel="noopener">部署说明</a>
         </div>
-      </section>
+        <div class="status-line">在线服务状态：<span id="serviceStatus">待配置</span></div>
+        <div class="subchips">
+          <span>风速 + 风险等级 + 预警概率 + 可解释性</span>
+          <span>不替代国家/省级业务预报</span>
+        </div>
+      </div>
+      <div class="hero-right card">
+        <h3>关键指标快照（主模型）</h3>
+        <div class="kpi-grid">
+          <div class="kpi"><div>MAE</div><strong id="heroMae">-</strong></div>
+          <div class="kpi"><div>RMSE</div><strong id="heroRmse">-</strong></div>
+          <div class="kpi"><div>R²</div><strong id="heroR2">-</strong></div>
+          <div class="kpi"><div>事件命中率</div><strong id="heroHit">-</strong></div>
+        </div>
+        <div class="tiny">数据与模型版本详见 DATA_CARD / MODEL_CARD。</div>
+      </div>
+    </section>
 
-      <section>
-        <div class="main-grid">
-          <div class="panel">
-            <div class="section-title">站点风险地图（3小时）</div>
-            <div id="mapChart" class="chart-tall"></div>
+    <section id="capabilities" class="section">
+      <h2>核心能力</h2>
+      <div class="cards four">
+        <article class="card">
+          <h3>多源数据融合</h3>
+          <p>站点观测 + 背景场 + 静态地理因子，支持数据缺失回退与版本记录。</p>
+        </article>
+        <article class="card">
+          <h3>时空联合建模</h3>
+          <p>时间注意力 + 图注意力，建模站点之间传播与空间依赖。</p>
+        </article>
+        <article class="card">
+          <h3>多任务与不确定性</h3>
+          <p>1/3/6h 风速、风险、预警概率，输出 P10-P90 置信区间。</p>
+        </article>
+        <article class="card">
+          <h3>可解释与可部署</h3>
+          <p>变量/时间/空间三层解释，支持 Docker 与多平台部署。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="scenes" class="section split">
+      <div class="card">
+        <h2>适用场景</h2>
+        <ul>
+          <li>政府应急：高风险时段提前预警与联防联控支持</li>
+          <li>交通运输：路网、枢纽、车队沙尘风险管理</li>
+          <li>农业生产：设施农业与春播关键时段风险提醒</li>
+          <li>园区企业：作业排程与安全阈值决策辅助</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>限定条件与边界</h2>
+        <ul>
+          <li>适用于中国西北区域级 0–6h 短临增强预测</li>
+          <li>要求区域具备可获取站点/背景场/静态因子</li>
+          <li>当前事件标签为业务代理标签，不是官方逐时人工标注</li>
+          <li>不替代国家级业务预报系统</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="results" class="section">
+      <h2>结果与优势</h2>
+      <div class="cards two">
+        <div class="card">
+          <h3>模型对比</h3>
+          <div id="modelCompare" class="chart"></div>
+        </div>
+        <div class="card">
+          <h3>事件级评估</h3>
+          <div id="eventSummary" class="event-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo" class="section">
+      <h2>在线演示工作台</h2>
+      <div class="layout-demo">
+        <aside class="card controls">
+          <h3>实时/准实时预测</h3>
+          <label>站点</label>
+          <select id="stationSelect"></select>
+
+          <label>当前风速 (m/s)</label>
+          <input id="windInput" type="number" min="0" step="0.5" value="8" />
+
+          <label>当前相对湿度 (%)</label>
+          <input id="rhInput" type="number" min="0" max="100" step="1" value="35" />
+
+          <button id="runBtn" class="btn btn-primary full">运行演示预测</button>
+          <p class="tiny">GitHub Pages 版本为前端演示推演；完整在线服务可接 Streamlit/FastAPI 公网实例。</p>
+
+          <div class="legend">
+            <span><i style="background:#22c55e"></i>低</span>
+            <span><i style="background:#f59e0b"></i>中</span>
+            <span><i style="background:#f97316"></i>高</span>
+            <span><i style="background:#ef4444"></i>极高</span>
           </div>
-          <div class="panel">
-            <div class="section-title">预测输出（1h/3h/6h）</div>
-            <div id="forecastChart" class="chart"></div>
-            <table class="table" id="forecastTable"></table>
+        </aside>
+
+        <div class="demo-main">
+          <div class="cards two">
+            <div class="card">
+              <h3>中国西北站点风险图（3h）</h3>
+              <div id="mapChart" class="chart-tall"></div>
+            </div>
+            <div class="card">
+              <h3>1/3/6 小时预测输出</h3>
+              <div id="forecastChart" class="chart"></div>
+              <table class="table" id="forecastTable"></table>
+            </div>
           </div>
 
-          <div class="panel">
-            <div class="section-title">历史回放：风速 真值 vs 预测</div>
-            <div id="replayWindChart" class="chart"></div>
+          <div class="cards two">
+            <div class="card">
+              <h3>历史回放：风速（3h）</h3>
+              <div id="replayWindChart" class="chart"></div>
+            </div>
+            <div class="card">
+              <h3>历史回放：预警概率（3h）</h3>
+              <div id="replayWarnChart" class="chart"></div>
+            </div>
           </div>
-          <div class="panel">
-            <div class="section-title">历史回放：预警 真值 vs 概率</div>
-            <div id="replayWarnChart" class="chart"></div>
-          </div>
+        </div>
+      </div>
+    </section>
 
-          <div class="panel">
-            <div class="section-title">模型与业务说明</div>
-            <ul>
-              <li>多源输入：站点动态 + 背景场 + 静态地理因子</li>
-              <li>多任务输出：风速、风险等级、预警概率、可解释性</li>
-              <li>机制约束：强风/低湿/沙源接近度/季节性</li>
-              <li>适用范围：区域级短临增强，不替代国家级业务预报</li>
-            </ul>
-            <div class="note">完整动态服务：FastAPI + Streamlit（仓库内可直接运行）</div>
-          </div>
-          <div class="panel">
-            <div class="section-title">API 示例</div>
-            <pre style="white-space:pre-wrap;color:#dbe8ff;background:#0f1a30;border:1px solid #25395d;border-radius:10px;padding:10px;">POST /predict/single
+    <section id="api" class="section split">
+      <div class="card">
+        <h2>API 与在线体验</h2>
+        <p>官网/在线体验/API 建议采用“官网 + 在线服务 + 接口文档”三层结构。</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" id="apiDocBtn" href="https://github.com/ljh2237/dust-nowcast/blob/main/API_REFERENCE.md" target="_blank" rel="noopener">API 文档</a>
+          <a class="btn btn-ghost" id="onlineAppBtn" href="https://github.com/ljh2237/dust-nowcast#readme" target="_blank" rel="noopener">在线体验入口</a>
+        </div>
+        <pre class="code">POST /predict/single
 {
   "station_id": "53772099999_Yulin",
   "feature_overrides": {"wind_speed": 8.0, "relative_humidity": 30.0},
   "mc_samples": 20
 }</pre>
-            <div class="note">仓库：<a href="https://github.com/ljh2237/dust-nowcast" target="_blank">github.com/ljh2237/dust-nowcast</a></div>
-          </div>
+      </div>
+      <div id="docs" class="card">
+        <h2>文档矩阵</h2>
+        <div class="doc-links">
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/README.md" target="_blank" rel="noopener">README</a>
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/PRODUCT_OVERVIEW.md" target="_blank" rel="noopener">PRODUCT_OVERVIEW</a>
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/DATA_CARD.md" target="_blank" rel="noopener">DATA_CARD</a>
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/MODEL_CARD.md" target="_blank" rel="noopener">MODEL_CARD</a>
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/API_REFERENCE.md" target="_blank" rel="noopener">API_REFERENCE</a>
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/DEPLOYMENT.md" target="_blank" rel="noopener">DEPLOYMENT</a>
+          <a href="https://github.com/ljh2237/dust-nowcast/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG</a>
         </div>
-      </section>
-    </div>
-
-    <div class="footer">© Dust Nowcast CN-NW Demo · GitHub Pages Interactive Product Demo</div>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <div>Dust Nowcast CN-NW · 中国西北沙尘短临预测产品官网</div>
+    <div class="tiny">最后更新：<span id="updatedAt">-</span></div>
+  </footer>
 
   <script src="./app.js"></script>
 </body>

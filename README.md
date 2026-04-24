@@ -67,6 +67,14 @@ docker compose up --build
 优先推荐 Render / Streamlit Cloud / Hugging Face Spaces。  
 详细步骤见：[DEPLOYMENT.md](./DEPLOYMENT.md)
 
+## GitHub Pages 产品官网
+- 官网地址（仓库开启 Pages 后）：`https://ljh2237.github.io/dust-nowcast/`
+- 官网代码目录：`docs/`
+- 运行时联动配置：`docs/assets/site_config.json`
+  - `online_app_url`：在线体验入口
+  - `api_doc_url`：公网 API 文档入口
+  - `service_status`：首页服务状态提示
+
 ## 结果产物
 - `results/metrics.json`
 - `results/event_metrics_summary.json`
