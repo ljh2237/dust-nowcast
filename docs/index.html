@@ -51,10 +51,10 @@
       <aside class="hero-side card">
         <h3>核心指标快照</h3>
         <div class="kpi-grid">
-          <div class="kpi"><label>MAE</label><strong id="heroMae">-</strong></div>
-          <div class="kpi"><label>RMSE</label><strong id="heroRmse">-</strong></div>
-          <div class="kpi"><label>R²</label><strong id="heroR2">-</strong></div>
-          <div class="kpi"><label>事件命中率</label><strong id="heroHit">-</strong></div>
+          <div class="kpi"><label>MAE</label><strong id="heroMae">3.247</strong></div>
+          <div class="kpi"><label>RMSE</label><strong id="heroRmse">4.600</strong></div>
+          <div class="kpi"><label>R²</label><strong id="heroR2">0.527</strong></div>
+          <div class="kpi"><label>事件命中率</label><strong id="heroHit">0.764</strong></div>
         </div>
         <div class="status-line">在线服务状态：<span id="serviceStatus">待配置</span></div>
       </aside>
@@ -129,6 +129,7 @@
           <p class="tiny">前端演示模式基于真实结果快照推演，用于成果展示与交互演示。</p>
         </div>
         <div class="card">
+          <div id="forecastCards" class="horizon-cards"></div>
           <div id="forecastChart" class="chart"></div>
           <table id="forecastTable" class="table"></table>
           <div class="driver-box" id="driverBox"></div>
@@ -150,7 +151,7 @@
             <button id="replayPlay" class="btn btn-primary">播放</button>
             <button id="replayPause" class="btn btn-ghost">暂停</button>
           </div>
-          <div class="tiny" id="replayHint">当前时刻：-</div>
+          <div class="tiny" id="replayHint">当前时刻：T+0</div>
         </div>
         <div class="card">
           <div id="replayWindChart" class="chart"></div>
@@ -162,9 +163,9 @@
     <section id="results" class="section">
       <h2>模型结果展示</h2>
       <div class="cards three">
-        <div class="card stat"><label>Warning F1</label><strong id="kpiF1">-</strong><p>主模型预警识别能力</p></div>
-        <div class="card stat"><label>ROC-AUC</label><strong id="kpiAuc">-</strong><p>二分类排序能力</p></div>
-        <div class="card stat"><label>PR-AUC</label><strong id="kpiPrauc">-</strong><p>不平衡事件识别能力</p></div>
+        <div class="card stat"><label>Warning F1</label><strong id="kpiF1">0.722</strong><p>主模型预警识别能力</p></div>
+        <div class="card stat"><label>ROC-AUC</label><strong id="kpiAuc">0.848</strong><p>二分类排序能力</p></div>
+        <div class="card stat"><label>PR-AUC</label><strong id="kpiPrauc">0.814</strong><p>不平衡事件识别能力</p></div>
       </div>
       <div class="cards two top-gap">
         <div class="card">
@@ -212,23 +213,12 @@
 
     <section id="necessity" class="section">
       <h2>项目必要性与限定条件</h2>
-      <div class="cards two">
-        <div class="card">
-          <ul>
-            <li>区域限定：聚焦中国西北重点沙源区与下游走廊</li>
-            <li>时效限定：0–6 小时短临增强预测</li>
-            <li>数据限定：多源数据条件下优势更显著</li>
-            <li>工程限定：轻量、可解释、可部署</li>
-          </ul>
-        </div>
-        <div class="card">
-          <ul>
-            <li>决策定位：最后一公里辅助决策增强</li>
-            <li>不替代国家/省级业务预报</li>
-            <li>适合答辩展示、项目申报、客户演示</li>
-            <li>支持官网展示 + 在线体验分流模式</li>
-          </ul>
-        </div>
+      <div class="cards five">
+        <article class="card mini"><div class="icon">◍</div><h3>区域限定</h3><p>中国西北重点沙源区及下游走廊。</p></article>
+        <article class="card mini"><div class="icon">⏱</div><h3>时效限定</h3><p>聚焦 0–6 小时短时临近预测。</p></article>
+        <article class="card mini"><div class="icon">☍</div><h3>数据限定</h3><p>多源数据条件下具备明显优势。</p></article>
+        <article class="card mini"><div class="icon">⚙</div><h3>工程限定</h3><p>轻量、可解释、可部署、可扩展。</p></article>
+        <article class="card mini"><div class="icon">◆</div><h3>决策定位</h3><p>最后一公里辅助决策增强，不替代国家级业务预报。</p></article>
       </div>
     </section>
 

@@ -16,6 +16,7 @@ const RISK_LABELS = ['低风险', '中风险', '高风险', '极高风险'];
 function fmt(n, d = 3) { return Number(n).toFixed(d); }
 function riskColor(i) { return ['#22c55e', '#f59e0b', '#f97316', '#ef4444'][i] || '#60a5fa'; }
 function riskLabel(i) { return RISK_LABELS[i] || '未知'; }
+function riskBadgeClass(i) { return ['risk-low', 'risk-mid', 'risk-high', 'risk-ext'][i] || 'risk-mid'; }
 
 async function fetchJSON(path) {
   const r = await fetch(path);
@@ -175,6 +176,18 @@ function renderForecast(forecast) {
     ],
   });
 
+  const cards = document.getElementById('forecastCards');
+  cards.innerHTML = forecast.map((x) => `
+    <div class="h-card">
+      <div class="t">未来 ${x.h}h</div>
+      <div class="v">${x.wind} <span style="font-size:12px;color:#a9c4eb;font-weight:600">m/s</span></div>
+      <div><span class="risk-badge ${riskBadgeClass(x.risk)}">${riskLabel(x.risk)}</span></div>
+      <div style="font-size:12px;color:#bcd3f6;margin-top:6px">预警概率 ${fmt(x.prob, 2)}</div>
+      <div class="prob-bar"><div class="prob-fill" style="width:${Math.round(x.prob * 100)}%"></div></div>
+      <div style="font-size:11px;color:#9db7dd;margin-top:6px">区间 ${x.wind_p10} ~ ${x.wind_p90}</div>
+    </div>
+  `).join('');
+
   document.getElementById('forecastTable').innerHTML = `
     <thead><tr><th>时效</th><th>风速</th><th>风速区间</th><th>风险等级</th><th>预警概率</th><th>概率区间</th></tr></thead>
     <tbody>
@@ -182,8 +195,10 @@ function renderForecast(forecast) {
     </tbody>`;
 
   const driver = forecast[1] || forecast[0];
-  const key = driver.risk >= 2 ? '风速升高 + 干燥增强 + 沙源接近度偏高' : '风速中等 + 湿度条件抑制 + 风险可控';
-  document.getElementById('driverBox').innerHTML = `<strong>关键驱动因子说明：</strong>${key}`;
+  const key = driver.risk >= 2
+    ? ['近地风速偏强', '相对湿度偏低', '沙源接近度较高']
+    : ['风速中等', '湿度条件存在抑制', '区域输送条件一般'];
+  document.getElementById('driverBox').innerHTML = `<strong>关键驱动因子：</strong>${key.join(' · ')}`;
 }
 
 function mapValue(station, h, layer) {
