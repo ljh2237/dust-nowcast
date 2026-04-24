@@ -6,6 +6,8 @@
   mapHorizon: 3,
   mapLayer: 'risk',
   replayTimer: null,
+  mapObj: null,
+  mapMarkers: null,
 };
 
 const runtime = { online_app_url: null, api_doc_url: null, service_status: '待配置' };
@@ -203,71 +205,42 @@ function updateMapDetail(stationId, h) {
   document.getElementById('detailCI').textContent = `${fmt(p.wind_p10)} ~ ${fmt(p.wind_p90)} m/s`;
 }
 
+function ensureLeafletMap() {
+  if (state.mapObj) return;
+  const map = L.map('mapChart', { zoomControl: true, attributionControl: true }).setView([38.2, 104.5], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 10,
+    minZoom: 3,
+    attribution: '&copy; OpenStreetMap',
+  }).addTo(map);
+  state.mapMarkers = L.layerGroup().addTo(map);
+  state.mapObj = map;
+}
+
 function renderMap() {
+  ensureLeafletMap();
   const h = Number(state.mapHorizon);
   const layer = state.mapLayer;
-  const chart = echarts.init(document.getElementById('mapChart'));
-  const seriesData = state.data.stations.map((s) => {
-    const v = mapValue(s, h, layer);
-    const p = stationProfile(s.station_id, h);
-    return {
-      name: s.station_name,
-      station_id: s.station_id,
-      value: [s.lon, s.lat, v, p.risk, p.wind, p.warn],
-    };
-  });
-
   const tagText = layer === 'risk' ? `未来 ${h}h 风险态势` : layer === 'warn' ? `未来 ${h}h 预警概率` : `未来 ${h}h 风速预测`;
   document.getElementById('mapTag').textContent = tagText;
 
-  const valueMinMax = layer === 'risk' ? [0, 3] : layer === 'warn' ? [0, 1] : [0, 18];
-  const vmText = layer === 'risk' ? ['高', '低'] : layer === 'warn' ? ['高', '低'] : ['大', '小'];
-  chart.setOption({
-    backgroundColor: 'transparent',
-    geo: {
-      map: 'china',
-      roam: true,
-      center: [104.5, 38.2],
-      zoom: 3.9,
-      itemStyle: { areaColor: '#1b2d4c', borderColor: '#4f6992' },
-      emphasis: { itemStyle: { areaColor: '#2b4772' } },
-    },
-    tooltip: {
-      formatter: (p) => {
-        const v = p.value || [];
-        return `${p.name}<br/>风速:${fmt(v[4])} m/s<br/>风险:${riskLabel(v[3])}<br/>预警概率:${fmt(v[5])}`;
-      },
-    },
-    visualMap: {
-      min: valueMinMax[0],
-      max: valueMinMax[1],
-      orient: 'horizontal',
-      left: 'center',
-      bottom: 10,
-      text: vmText,
-      textStyle: { color: '#cde2ff' },
-      calculable: false,
-    },
-    series: [
-      {
-        type: 'effectScatter',
-        coordinateSystem: 'geo',
-        data: seriesData,
-        showEffectOn: 'render',
-        rippleEffect: { scale: 3, brushType: 'stroke' },
-        symbolSize: (v) => 10 + (layer === 'risk' ? v[2] * 5 : layer === 'warn' ? v[2] * 18 : v[2] * 0.9),
-        itemStyle: {
-          color: (p) => riskColor(p.data.value[3]),
-          borderColor: '#fff',
-          borderWidth: 1,
-        },
-      },
-    ],
-  });
-
-  chart.off('click');
-  chart.on('click', (params) => {
-    if (params.data && params.data.station_id) updateMapDetail(params.data.station_id, h);
+  state.mapMarkers.clearLayers();
+  state.data.stations.forEach((s) => {
+    const p = stationProfile(s.station_id, h);
+    const v = mapValue(s, h, layer);
+    const radius = layer === 'risk' ? 7 + p.risk * 3 : layer === 'warn' ? 7 + p.warn * 12 : 7 + Math.min(10, p.wind * 0.7);
+    const marker = L.circleMarker([s.lat, s.lon], {
+      radius,
+      color: '#ffffff',
+      weight: 1.2,
+      fillColor: riskColor(p.risk),
+      fillOpacity: 0.88,
+    });
+    marker.bindPopup(
+      `<strong>${s.station_name}</strong><br/>时效: ${h}h<br/>风速: ${fmt(p.wind)} m/s<br/>风险: ${riskLabel(p.risk)}<br/>预警概率: ${fmt(p.warn)}`
+    );
+    marker.on('click', () => updateMapDetail(s.station_id, h));
+    marker.addTo(state.mapMarkers);
   });
 
   if (state.selectedStation) updateMapDetail(state.selectedStation, h);
@@ -391,12 +364,13 @@ function bindButtons() {
 }
 
 function onResize() {
-  ['modelCompare', 'forecastChart', 'mapChart', 'replayWindChart', 'replayWarnChart'].forEach((id) => {
+  ['modelCompare', 'forecastChart', 'replayWindChart', 'replayWarnChart'].forEach((id) => {
     const dom = document.getElementById(id);
     if (!dom) return;
     const inst = echarts.getInstanceByDom(dom);
     if (inst) inst.resize();
   });
+  if (state.mapObj) state.mapObj.invalidateSize();
 }
 
 (async function bootstrap() {

@@ -66,6 +66,10 @@ select,input{background:#0c1830;color:#e9f3ff;border:1px solid #2e4c7a;border-ra
 .tag{padding:8px 10px;border-radius:10px;border:1px solid #365885;background:#102140;color:#d2e4ff;font-size:12px}
 .chart{width:100%;height:300px}
 .chart-map{width:100%;height:460px}
+.leaflet-container{background:#0c1a33;border-radius:12px}
+.leaflet-control-attribution{background:rgba(12,24,48,.72)!important;color:#b9d0f2!important;border-radius:8px}
+.leaflet-popup-content-wrapper{background:#0f2142;color:#e6f1ff;border:1px solid #345784}
+.leaflet-popup-tip{background:#0f2142}
 
 .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
 .legend span{display:flex;align-items:center;gap:6px;color:#c8dcff;font-size:12px}
