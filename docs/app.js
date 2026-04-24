@@ -222,72 +222,53 @@ function renderMap() {
 
   const valueMinMax = layer === 'risk' ? [0, 3] : layer === 'warn' ? [0, 1] : [0, 18];
   const vmText = layer === 'risk' ? ['高', '低'] : layer === 'warn' ? ['高', '低'] : ['大', '小'];
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2400);
-
-  fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', { signal: controller.signal })
-    .then((r) => r.json())
-    .then((geo) => {
-      clearTimeout(timeoutId);
-      echarts.registerMap('china', geo);
-      chart.setOption({
-        backgroundColor: 'transparent',
-        geo: {
-          map: 'china',
-          roam: true,
-          center: [104.5, 38.2],
-          zoom: 3.9,
-          itemStyle: { areaColor: '#1b2d4c', borderColor: '#4f6992' },
-          emphasis: { itemStyle: { areaColor: '#2b4772' } },
+  chart.setOption({
+    backgroundColor: 'transparent',
+    geo: {
+      map: 'china',
+      roam: true,
+      center: [104.5, 38.2],
+      zoom: 3.9,
+      itemStyle: { areaColor: '#1b2d4c', borderColor: '#4f6992' },
+      emphasis: { itemStyle: { areaColor: '#2b4772' } },
+    },
+    tooltip: {
+      formatter: (p) => {
+        const v = p.value || [];
+        return `${p.name}<br/>风速:${fmt(v[4])} m/s<br/>风险:${riskLabel(v[3])}<br/>预警概率:${fmt(v[5])}`;
+      },
+    },
+    visualMap: {
+      min: valueMinMax[0],
+      max: valueMinMax[1],
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 10,
+      text: vmText,
+      textStyle: { color: '#cde2ff' },
+      calculable: false,
+    },
+    series: [
+      {
+        type: 'effectScatter',
+        coordinateSystem: 'geo',
+        data: seriesData,
+        showEffectOn: 'render',
+        rippleEffect: { scale: 3, brushType: 'stroke' },
+        symbolSize: (v) => 10 + (layer === 'risk' ? v[2] * 5 : layer === 'warn' ? v[2] * 18 : v[2] * 0.9),
+        itemStyle: {
+          color: (p) => riskColor(p.data.value[3]),
+          borderColor: '#fff',
+          borderWidth: 1,
         },
-        tooltip: {
-          formatter: (p) => {
-            const v = p.value || [];
-            return `${p.name}<br/>风速:${fmt(v[4])} m/s<br/>风险:${riskLabel(v[3])}<br/>预警概率:${fmt(v[5])}`;
-          },
-        },
-        visualMap: {
-          min: valueMinMax[0],
-          max: valueMinMax[1],
-          orient: 'horizontal',
-          left: 'center',
-          bottom: 10,
-          text: vmText,
-          textStyle: { color: '#cde2ff' },
-          calculable: false,
-        },
-        series: [
-          {
-            type: 'effectScatter',
-            coordinateSystem: 'geo',
-            data: seriesData,
-            showEffectOn: 'render',
-            rippleEffect: { scale: 3, brushType: 'stroke' },
-            symbolSize: (v) => 10 + (layer === 'risk' ? v[2] * 5 : layer === 'warn' ? v[2] * 18 : v[2] * 0.9),
-            itemStyle: {
-              color: (p) => riskColor(p.data.value[3]),
-              borderColor: '#fff',
-              borderWidth: 1,
-            },
-          },
-        ],
-      });
+      },
+    ],
+  });
 
-      chart.off('click');
-      chart.on('click', (params) => {
-        if (params.data && params.data.station_id) updateMapDetail(params.data.station_id, h);
-      });
-    })
-    .catch(() => {
-      clearTimeout(timeoutId);
-      chart.setOption({
-        xAxis: { type: 'value', name: '经度', axisLabel: { color: '#bcd3f5' } },
-        yAxis: { type: 'value', name: '纬度', axisLabel: { color: '#bcd3f5' } },
-        tooltip: { formatter: (p) => `${p.name}<br/>风险:${riskLabel((p.value || [])[3] || 0)}` },
-        series: [{ type: 'scatter', data: seriesData.map((d) => ({ name: d.name, station_id: d.station_id, value: d.value })), symbolSize: 12 }],
-      });
-    });
+  chart.off('click');
+  chart.on('click', (params) => {
+    if (params.data && params.data.station_id) updateMapDetail(params.data.station_id, h);
+  });
 
   if (state.selectedStation) updateMapDetail(state.selectedStation, h);
 }
