@@ -61,6 +61,37 @@ class CNNLSTMBaseline(nn.Module):
         return {"wind": reg, "risk_logits": risk, "warn_logit": warn}
 
 
+class AttentionTCNLSTMBaseline(nn.Module):
+    """业务落地版: 轻量 TCN + Attention-LSTM."""
+
+    def __init__(self, in_dim: int, hidden_dim: int, horizons: int, num_risk_classes: int = 3) -> None:
+        super().__init__()
+        self.tcn_1 = nn.Conv1d(in_channels=in_dim, out_channels=in_dim, kernel_size=3, padding=1, dilation=1)
+        self.tcn_2 = nn.Conv1d(in_channels=in_dim, out_channels=in_dim, kernel_size=3, padding=2, dilation=2)
+        self.norm = nn.BatchNorm1d(in_dim)
+        self.lstm = nn.LSTM(input_size=in_dim, hidden_size=hidden_dim, num_layers=1, batch_first=True)
+        self.attn = nn.Linear(hidden_dim, 1)
+        self.reg_head = nn.Linear(hidden_dim, horizons)
+        self.risk_head = nn.Linear(hidden_dim, horizons * num_risk_classes)
+        self.warn_head = nn.Linear(hidden_dim, horizons)
+        self.horizons = horizons
+
+    def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
+        b, t, n, f = x.shape
+        x = x.permute(0, 2, 1, 3).reshape(b * n, t, f)
+        z = x.permute(0, 2, 1)
+        z = torch.relu(self.tcn_1(z))
+        z = torch.relu(self.tcn_2(z))
+        z = self.norm(z).permute(0, 2, 1)
+        h, _ = self.lstm(z)
+        w = torch.softmax(self.attn(h).squeeze(-1), dim=1).unsqueeze(-1)
+        z_attn = (h * w).sum(dim=1)
+        reg = self.reg_head(z_attn).reshape(b, n, self.horizons)
+        risk = self.risk_head(z_attn).reshape(b, n, self.horizons, -1)
+        warn = self.warn_head(z_attn).reshape(b, n, self.horizons)
+        return {"wind": reg, "risk_logits": risk, "warn_logit": warn}
+
+
 @dataclass
 class MLBaselineBundle:
     reg_model: object

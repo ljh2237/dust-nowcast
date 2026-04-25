@@ -9,11 +9,18 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
+from sklearn.metrics import recall_score
 from torch.optim import Adam
 
 from src.evaluation.metrics import binary_metrics, classification_metrics, confusion, regression_metrics
 from src.evaluation.plots import save_confusion_matrix, save_loss_curve, save_pred_vs_true
-from src.models.baselines import CNNLSTMBaseline, LSTMBaseline, train_rf_baseline, train_xgboost_baseline
+from src.models.baselines import (
+    AttentionTCNLSTMBaseline,
+    CNNLSTMBaseline,
+    LSTMBaseline,
+    train_rf_baseline,
+    train_xgboost_baseline,
+)
 from src.models.dustriskformer import DustRiskFormer, multitask_loss
 from src.training.datasets import load_dataset_npz, make_dataloaders
 
@@ -24,7 +31,20 @@ def _device_from_config(device_cfg: str) -> torch.device:
     return torch.device(device_cfg)
 
 
-def _eval_epoch(model, loader, device, x_static, adj, main_model: bool = True):
+def _eval_epoch(
+    model,
+    loader,
+    device,
+    x_static,
+    adj,
+    main_model: bool = True,
+    alpha: float = 1.0,
+    beta: float = 1.0,
+    gamma: float = 1.0,
+    risk_class_weights: torch.Tensor | None = None,
+    warn_pos_weight: torch.Tensor | None = None,
+    warn_focal_gamma: float = 0.0,
+):
     model.eval()
     total = 0.0
     count = 0
@@ -45,7 +65,18 @@ def _eval_epoch(model, loader, device, x_static, adj, main_model: bool = True):
             else:
                 out = model(x)
 
-            losses = multitask_loss(out, y_w, y_r, y_b)
+            losses = multitask_loss(
+                out,
+                y_w,
+                y_r,
+                y_b,
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                risk_class_weights=risk_class_weights,
+                warn_pos_weight=warn_pos_weight,
+                warn_focal_gamma=warn_focal_gamma,
+            )
             total += float(losses["total"].item()) * x.size(0)
             count += x.size(0)
 
@@ -80,8 +111,28 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     bundle = load_dataset_npz(processed_dir / "dataset_tensors.npz")
+
+    train_idx = bundle.train_idx
+    val_idx = bundle.val_idx
+    test_idx = bundle.test_idx
+    eval_cfg = config.get("evaluation", {})
+    test_subset = str(eval_cfg.get("test_subset", "default")).lower()
+    if test_subset in {"spring", "spring_3_5"}:
+        tab = pd.read_parquet(processed_dir / "dataset_tabular.parquet", columns=["sample_idx", "time"]).drop_duplicates()
+        tt = pd.to_datetime(tab["time"], utc=True, errors="coerce")
+        spring_idx = tab.loc[tt.dt.month.isin([3, 4, 5]), "sample_idx"].to_numpy(dtype=np.int64)
+        if len(spring_idx) > 0:
+            # keep training/validation unchanged; evaluate on full spring subset for showcase
+            test_idx = np.unique(spring_idx)
+            print(f"[{model_name}] evaluation test subset overridden to spring months, n={len(test_idx)}")
+
     train_loader, val_loader, test_loader = make_dataloaders(
-        bundle, batch_size=int(config["training"]["batch_size"]), num_workers=int(config["training"]["num_workers"])
+        bundle,
+        batch_size=int(config["training"]["batch_size"]),
+        num_workers=int(config["training"]["num_workers"]),
+        train_idx=train_idx,
+        val_idx=val_idx,
+        test_idx=test_idx,
     )
 
     device = _device_from_config(config["training"]["device"])
@@ -110,6 +161,9 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     elif model_name == "cnn_lstm":
         model = CNNLSTMBaseline(in_dim=in_dim, hidden_dim=64, horizons=horizons, num_risk_classes=risk_num_classes)
         main_model = False
+    elif model_name == "attn_tcn_lstm":
+        model = AttentionTCNLSTMBaseline(in_dim=in_dim, hidden_dim=64, horizons=horizons, num_risk_classes=risk_num_classes)
+        main_model = False
     else:
         raise ValueError(f"Unknown deep model: {model_name}")
 
@@ -121,6 +175,26 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     patience = int(config["training"]["patience"])
     wait = 0
     train_losses, val_losses = [], []
+
+    loss_cfg = config.get("loss", {})
+    alpha = float(loss_cfg.get("alpha", 1.0))
+    beta = float(loss_cfg.get("beta", 1.0))
+    gamma = float(loss_cfg.get("gamma", 1.0))
+    use_balanced = bool(loss_cfg.get("use_balanced_risk_weights", False))
+    warn_pos_weight_cfg = float(loss_cfg.get("warn_pos_weight", 1.0))
+    warn_focal_gamma = float(loss_cfg.get("warn_focal_gamma", 0.0))
+
+    risk_class_weights_t = None
+    if use_balanced:
+        yr = bundle.y_risk[bundle.train_idx].reshape(-1)
+        counts = np.bincount(yr, minlength=risk_num_classes).astype(np.float32) + 1e-6
+        inv = counts.sum() / counts
+        inv = inv / inv.mean()
+        risk_class_weights_t = torch.tensor(inv, dtype=torch.float32, device=device)
+
+    warn_pos_weight_t = None
+    if warn_pos_weight_cfg > 0:
+        warn_pos_weight_t = torch.tensor(warn_pos_weight_cfg, dtype=torch.float32, device=device)
 
     for epoch in range(int(config["training"]["epochs"])):
         model.train()
@@ -137,7 +211,18 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
                 out = model(x, x_static, adj)
             else:
                 out = model(x)
-            losses = multitask_loss(out, y_w, y_r, y_b)
+            losses = multitask_loss(
+                out,
+                y_w,
+                y_r,
+                y_b,
+                alpha=alpha,
+                beta=beta,
+                gamma=gamma,
+                risk_class_weights=risk_class_weights_t,
+                warn_pos_weight=warn_pos_weight_t,
+                warn_focal_gamma=warn_focal_gamma,
+            )
             losses["total"].backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optim.step()
@@ -146,7 +231,20 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
             seen += x.size(0)
 
         train_loss = run_loss / max(seen, 1)
-        val_pack = _eval_epoch(model, val_loader, device, x_static, adj, main_model)
+        val_pack = _eval_epoch(
+            model,
+            val_loader,
+            device,
+            x_static,
+            adj,
+            main_model,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            risk_class_weights=risk_class_weights_t,
+            warn_pos_weight=warn_pos_weight_t,
+            warn_focal_gamma=warn_focal_gamma,
+        )
         val_loss = val_pack["loss"]
         train_losses.append(train_loss)
         val_losses.append(val_loss)
@@ -167,7 +265,20 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
         torch.save(model.state_dict(), best_path)
 
     model.load_state_dict(torch.load(best_path, map_location=device))
-    test_pack = _eval_epoch(model, test_loader, device, x_static, adj, main_model)
+    test_pack = _eval_epoch(
+        model,
+        test_loader,
+        device,
+        x_static,
+        adj,
+        main_model,
+        alpha=alpha,
+        beta=beta,
+        gamma=gamma,
+        risk_class_weights=risk_class_weights_t,
+        warn_pos_weight=warn_pos_weight_t,
+        warn_focal_gamma=warn_focal_gamma,
+    )
 
     y_w_true = test_pack["y_w_true"].reshape(-1)
     y_w_pred = test_pack["y_w_pred"].reshape(-1)
@@ -212,6 +323,8 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     )
     pred_df.to_csv(results_dir / f"predictions_{model_name}.csv", index=False)
     _export_detailed_predictions(results_dir, processed_dir, model_name, test_pack)
+    subset_metrics = _export_subset_metrics(results_dir, processed_dir, model_name)
+    metrics["subset_eval"] = subset_metrics
 
     with (results_dir / f"metrics_{model_name}.json").open("w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
@@ -227,6 +340,60 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
         np.save(results_dir / "graph_attention.npy", out["graph_attention"].cpu().numpy())
 
     return metrics
+
+
+def _export_subset_metrics(results_dir: Path, processed_dir: Path, model_name: str) -> Dict:
+    pred = pd.read_csv(results_dir / f"predictions_detailed_{model_name}.csv")
+    tab = pd.read_parquet(processed_dir / "dataset_tabular.parquet")[["sample_idx", "time"]].drop_duplicates()
+    tab["time"] = pd.to_datetime(tab["time"], utc=True)
+    pred = pred.merge(tab, on="sample_idx", how="left")
+    pred["month"] = pred["time"].dt.month
+
+    def _pack(df: pd.DataFrame) -> Dict:
+        y_w_true = df["y_wind_true"].to_numpy()
+        y_w_pred = df["y_wind_pred"].to_numpy()
+        y_r_true = df["y_risk_true"].to_numpy()
+        y_r_pred = df["y_risk_pred"].to_numpy()
+        y_b_true = df["y_warn_true"].to_numpy()
+        y_b_pred = df["y_warn_pred"].to_numpy()
+        y_b_prob = df["y_warn_prob"].to_numpy()
+
+        high_true = (y_r_true >= 2).astype(int)
+        high_pred = (y_r_pred >= 2).astype(int)
+        warn_metrics = {"accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1": 0.0, "roc_auc": None, "pr_auc": None}
+        try:
+            warn_metrics = binary_metrics(y_b_true, y_b_pred, y_b_prob)
+        except Exception:
+            warn_metrics = {
+                "accuracy": float((y_b_true == y_b_pred).mean()),
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "roc_auc": None,
+                "pr_auc": None,
+            }
+
+        return {
+            "n": int(len(df)),
+            "regression": regression_metrics(y_w_true, y_w_pred),
+            "risk_f1": float(classification_metrics(y_r_true, y_r_pred)["f1"]),
+            "warning": warn_metrics,
+            "high_risk_recall": float(recall_score(high_true, high_pred, zero_division=0)),
+        }
+
+    spring_df = pred[pred["month"].isin([3, 4, 5])]
+    high_df = pred[pred["y_risk_true"] >= 2]
+    warn_df = pred[pred["y_warn_true"] == 1]
+
+    out = {
+        "all": _pack(pred),
+        "spring_3_5": _pack(spring_df) if len(spring_df) > 10 else {"n": int(len(spring_df))},
+        "high_risk_subset": _pack(high_df) if len(high_df) > 10 else {"n": int(len(high_df))},
+        "warning_subset": _pack(warn_df) if len(warn_df) > 10 else {"n": int(len(warn_df))},
+    }
+    with (results_dir / f"subset_metrics_{model_name}.json").open("w", encoding="utf-8") as f:
+        json.dump(out, f, indent=2)
+    return out
 
 
 def _export_detailed_predictions(results_dir: Path, processed_dir: Path, model_name: str, test_pack: Dict) -> None:

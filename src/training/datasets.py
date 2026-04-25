@@ -58,10 +58,20 @@ def load_dataset_npz(path: str | Path) -> DatasetBundle:
     )
 
 
-def make_dataloaders(bundle: DatasetBundle, batch_size: int, num_workers: int) -> Tuple[DataLoader, DataLoader, DataLoader]:
-    train_ds = TensorDatasetMTL(bundle.X, bundle.y_wind, bundle.y_risk, bundle.y_warn, bundle.train_idx)
-    val_ds = TensorDatasetMTL(bundle.X, bundle.y_wind, bundle.y_risk, bundle.y_warn, bundle.val_idx)
-    test_ds = TensorDatasetMTL(bundle.X, bundle.y_wind, bundle.y_risk, bundle.y_warn, bundle.test_idx)
+def make_dataloaders(
+    bundle: DatasetBundle,
+    batch_size: int,
+    num_workers: int,
+    train_idx: np.ndarray | None = None,
+    val_idx: np.ndarray | None = None,
+    test_idx: np.ndarray | None = None,
+) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    train_i = bundle.train_idx if train_idx is None else train_idx
+    val_i = bundle.val_idx if val_idx is None else val_idx
+    test_i = bundle.test_idx if test_idx is None else test_idx
+    train_ds = TensorDatasetMTL(bundle.X, bundle.y_wind, bundle.y_risk, bundle.y_warn, train_i)
+    val_ds = TensorDatasetMTL(bundle.X, bundle.y_wind, bundle.y_risk, bundle.y_warn, val_i)
+    test_ds = TensorDatasetMTL(bundle.X, bundle.y_wind, bundle.y_risk, bundle.y_warn, test_i)
 
     return (
         DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers),

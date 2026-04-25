@@ -117,11 +117,28 @@ def multitask_loss(
     alpha: float = 1.0,
     beta: float = 1.0,
     gamma: float = 1.0,
+    risk_class_weights: torch.Tensor | None = None,
+    warn_pos_weight: torch.Tensor | None = None,
+    warn_focal_gamma: float = 0.0,
 ) -> Dict[str, torch.Tensor]:
     loss_reg = F.smooth_l1_loss(outputs["wind"], y_wind)
     b, n, h, c = outputs["risk_logits"].shape
-    loss_risk = F.cross_entropy(outputs["risk_logits"].reshape(b * n * h, c), y_risk.reshape(-1))
-    loss_warn = F.binary_cross_entropy_with_logits(outputs["warn_logit"], y_warn)
+    loss_risk = F.cross_entropy(
+        outputs["risk_logits"].reshape(b * n * h, c),
+        y_risk.reshape(-1),
+        weight=risk_class_weights,
+    )
+
+    warn_logit = outputs["warn_logit"]
+    base_warn = F.binary_cross_entropy_with_logits(warn_logit, y_warn, pos_weight=warn_pos_weight, reduction="none")
+    if warn_focal_gamma > 0:
+        prob = torch.sigmoid(warn_logit)
+        p_t = prob * y_warn + (1.0 - prob) * (1.0 - y_warn)
+        focal = torch.pow((1.0 - p_t).clamp(min=1e-6), warn_focal_gamma)
+        loss_warn = (base_warn * focal).mean()
+    else:
+        loss_warn = base_warn.mean()
+
     total = alpha * loss_reg + beta * loss_risk + gamma * loss_warn
     return {
         "total": total,
