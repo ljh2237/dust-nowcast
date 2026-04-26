@@ -120,6 +120,51 @@ function renderEventSummary() {
   wrap.innerHTML = items.map(([k, v]) => `<div class="event-item"><div class="name">${k}</div><div class="value">${fmt(v)}</div></div>`).join('');
 }
 
+function renderExpBars(targetId, rows, labelKey) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+  if (!rows || !rows.length) {
+    el.innerHTML = '<div class="tiny">暂无解释数据</div>';
+    return;
+  }
+  el.innerHTML = rows.map((r) => {
+    const label = r[labelKey];
+    const score = Number(r.score || 0);
+    return `
+      <div class="exp-row">
+        <div class="exp-row-head">
+          <span>${label}</span>
+          <span>${(score * 100).toFixed(1)}%</span>
+        </div>
+        <div class="exp-row-track"><div class="exp-row-fill" style="width:${Math.round(score * 100)}%"></div></div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderExplainabilityPanel() {
+  const exp = state.data.explainability || {};
+  const t = exp.temporal_top_windows || [];
+  const s = exp.spatial_top_stations || [];
+  const v = exp.variable_top_features || [];
+  const sum = exp.summary || {};
+
+  renderExpBars('expTemporalBars', t, 'window_label');
+  renderExpBars('expSpatialBars', s, 'station_name');
+  renderExpBars('expVariableBars', v, 'feature');
+
+  const tTop = t.slice(0, 3).map((x) => x.window_label).join('、') || '-';
+  const sTop = s.slice(0, 3).map((x) => x.station_name).join('、') || '-';
+  const vTop = v.slice(0, 3).map((x) => x.feature).join('、') || '-';
+
+  document.getElementById('expTemporalSummary').textContent =
+    `Top3 时间窗累计贡献 ${(Number(sum.temporal_focus_share_top3 || 0) * 100).toFixed(1)}%，关键窗口：${tTop}`;
+  document.getElementById('expSpatialSummary').textContent =
+    `Top3 空间节点累计贡献 ${(Number(sum.spatial_focus_share_top3 || 0) * 100).toFixed(1)}%，关键站点：${sTop}`;
+  document.getElementById('expVariableSummary').textContent =
+    `Top3 变量累计贡献 ${(Number(sum.variable_focus_share_top3 || 0) * 100).toFixed(1)}%，关键变量：${vTop}`;
+}
+
 function renderOptimizationPanel() {
   const opt = state.data.optimization || {};
   const rec = opt.recommendation || {};
@@ -446,6 +491,7 @@ function onResize() {
   hydrateHero();
   renderModelCompare();
   renderEventSummary();
+  renderExplainabilityPanel();
   renderOptimizationPanel();
   initStationSelects();
   bindMapControls();

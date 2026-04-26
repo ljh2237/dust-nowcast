@@ -6,6 +6,73 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+def _safe_float(x: float | int | np.floating | np.integer) -> float:
+    return float(np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0))
+
+
+def _build_explainability(root: Path, data_meta: dict) -> dict:
+    stations = data_meta["stations"]
+    station_names = [s["station_name"] for s in stations]
+    seq_len = int(data_meta.get("seq_len", 24))
+
+    temporal = np.load(root / "results/temporal_attention.npy", allow_pickle=True)
+    graph = np.load(root / "results/graph_attention.npy", allow_pickle=True)
+    tab = pd.read_parquet(root / "data/processed/dataset_tabular.parquet")
+
+    # Temporal: average attention over batch/query -> key-step importance
+    t_imp = temporal.mean(axis=(0, 1))
+    t_imp = t_imp / np.clip(t_imp.sum(), 1e-9, None)
+    top_t_idx = np.argsort(t_imp)[::-1][:6]
+    temporal_top = [
+        {
+            "step": int(i),
+            "window_label": f"T-{max(seq_len - 1 - int(i), 0)}h",
+            "score": _safe_float(t_imp[i]),
+        }
+        for i in top_t_idx
+    ]
+
+    # Spatial: average outgoing weights as contribution proxy
+    g = graph.mean(axis=0)  # [N, N]
+    out_contrib = g.mean(axis=1)
+    out_contrib = out_contrib / np.clip(out_contrib.sum(), 1e-9, None)
+    top_s_idx = np.argsort(out_contrib)[::-1][:5]
+    spatial_top = [
+        {
+            "station_name": station_names[int(i)],
+            "score": _safe_float(out_contrib[i]),
+        }
+        for i in top_s_idx
+    ]
+
+    # Variable: robust and reproducible proxy via abs Spearman corr to warn label
+    candidate_cols = [c for c in tab.columns if c.startswith("last_") or c.startswith("mean_")]
+    target = tab["y_warn_3h"].astype(float)
+    pairs = []
+    for c in candidate_cols:
+        v = tab[c].astype(float)
+        if v.std() < 1e-8:
+            continue
+        corr = v.corr(target, method="spearman")
+        if pd.isna(corr):
+            continue
+        pairs.append((c, abs(float(corr))))
+    pairs.sort(key=lambda x: x[1], reverse=True)
+    top_pairs = pairs[:8]
+    s = sum(p[1] for p in top_pairs) or 1.0
+    variable_top = [{"feature": k, "score": float(v / s)} for k, v in top_pairs]
+
+    return {
+        "temporal_top_windows": temporal_top,
+        "spatial_top_stations": spatial_top,
+        "variable_top_features": variable_top,
+        "summary": {
+            "temporal_focus_share_top3": _safe_float(sum(x["score"] for x in temporal_top[:3])),
+            "spatial_focus_share_top3": _safe_float(sum(x["score"] for x in spatial_top[:3])),
+            "variable_focus_share_top3": _safe_float(sum(x["score"] for x in variable_top[:3])),
+        },
+    }
+
 
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
@@ -115,6 +182,7 @@ def main() -> None:
             "wind_gain": [0.32, 0.28, 0.24],
             "rh_penalty": [0.018, 0.016, 0.014],
         },
+        "explainability": _build_explainability(root, data_meta),
     }
 
     out_path = root / "docs/assets/demo_data.json"

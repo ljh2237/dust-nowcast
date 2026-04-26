@@ -220,18 +220,21 @@
       <div class="cards three">
         <div class="card">
           <h3>时间级解释</h3>
-          <img src="../results/plots/temporal_attention_heatmap.png" alt="temporal" class="shot" />
-          <p class="tiny">重点窗口通常集中在事件前 3–8 小时。</p>
+          <p class="tiny">关键时间窗贡献（Top 6）</p>
+          <div id="expTemporalBars" class="exp-bars"></div>
+          <p class="tiny" id="expTemporalSummary">-</p>
         </div>
         <div class="card">
           <h3>空间级解释</h3>
-          <img src="../results/plots/graph_attention_heatmap.png" alt="graph" class="shot" />
-          <p class="tiny">上游站点与通道站对下游风险有显著贡献。</p>
+          <p class="tiny">上游站点贡献（Top 5）</p>
+          <div id="expSpatialBars" class="exp-bars"></div>
+          <p class="tiny" id="expSpatialSummary">-</p>
         </div>
         <div class="card">
           <h3>变量级解释</h3>
-          <img src="../results/plots/rf_feature_importance.png" alt="feature" class="shot" />
-          <p class="tiny">风速、湿度、沙源接近度是主要驱动因子。</p>
+          <p class="tiny">变量重要性（Top 8）</p>
+          <div id="expVariableBars" class="exp-bars"></div>
+          <p class="tiny" id="expVariableSummary">-</p>
         </div>
       </div>
     </section>

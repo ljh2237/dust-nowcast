@@ -22430,5 +22430,100 @@
       0.016,
       0.014
     ]
+  },
+  "explainability": {
+    "temporal_top_windows": [
+      {
+        "step": 19,
+        "window_label": "T-4h",
+        "score": 0.12818863987922668
+      },
+      {
+        "step": 20,
+        "window_label": "T-3h",
+        "score": 0.11305449157953262
+      },
+      {
+        "step": 1,
+        "window_label": "T-22h",
+        "score": 0.09609802812337875
+      },
+      {
+        "step": 14,
+        "window_label": "T-9h",
+        "score": 0.0858762115240097
+      },
+      {
+        "step": 22,
+        "window_label": "T-1h",
+        "score": 0.08415734767913818
+      },
+      {
+        "step": 0,
+        "window_label": "T-23h",
+        "score": 0.07301636040210724
+      }
+    ],
+    "spatial_top_stations": [
+      {
+        "station_name": "Yulin",
+        "score": 0.125
+      },
+      {
+        "station_name": "Dingbian",
+        "score": 0.125
+      },
+      {
+        "station_name": "Yinchuan",
+        "score": 0.125
+      },
+      {
+        "station_name": "Lanzhou",
+        "score": 0.125
+      },
+      {
+        "station_name": "Wuwei",
+        "score": 0.125
+      }
+    ],
+    "variable_top_features": [
+      {
+        "feature": "last_bg_wind_gust",
+        "score": 0.14863065053174576
+      },
+      {
+        "feature": "last_relative_humidity",
+        "score": 0.14464836993990393
+      },
+      {
+        "feature": "last_bg_relative_humidity",
+        "score": 0.13803403234276504
+      },
+      {
+        "feature": "last_wind_speed",
+        "score": 0.12591645864123965
+      },
+      {
+        "feature": "last_bg_wind_speed",
+        "score": 0.12591645864123965
+      },
+      {
+        "feature": "mean_wind_speed",
+        "score": 0.10735765061542894
+      },
+      {
+        "feature": "mean_bg_wind_speed",
+        "score": 0.10735765061542894
+      },
+      {
+        "feature": "mean_bg_wind_gust",
+        "score": 0.10213872867224792
+      }
+    ],
+    "summary": {
+      "temporal_focus_share_top3": 0.33734115958213806,
+      "spatial_focus_share_top3": 0.375,
+      "variable_focus_share_top3": 0.4313130528144147
+    }
   }
 }

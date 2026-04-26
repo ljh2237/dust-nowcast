@@ -205,6 +205,12 @@ select:focus,input:focus{border-color:#63a4e6;box-shadow:0 0 0 3px rgba(99,164,2
 .arch-grid h3{margin:0 0 8px}
 .arch-grid p{margin:0;color:#c8ddfb;line-height:1.7}
 
+.exp-bars{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.exp-row{padding:8px;border:1px solid #32557f;border-radius:10px;background:#0d1d37}
+.exp-row-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#cfe2ff}
+.exp-row-track{height:8px;border-radius:999px;background:#173153;border:1px solid #355b8c;overflow:hidden;margin-top:6px}
+.exp-row-fill{height:100%;background:linear-gradient(90deg,#22d3ee,#60a5fa)}
+
 .opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .opt-item{border:1px solid #365985;background:#0e1d38;border-radius:12px;padding:12px}
 .opt-item label{font-size:12px;color:#a9c5e9;display:block}
