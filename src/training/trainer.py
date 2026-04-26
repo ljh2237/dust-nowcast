@@ -117,14 +117,25 @@ def train_deep_model(config: Dict, model_name: str = "dustriskformer") -> Dict:
     test_idx = bundle.test_idx
     eval_cfg = config.get("evaluation", {})
     test_subset = str(eval_cfg.get("test_subset", "default")).lower()
-    if test_subset in {"spring", "spring_3_5"}:
+    if test_subset in {"spring", "spring_3_5", "spring_strict_from_test", "spring_holdout_strict"}:
         tab = pd.read_parquet(processed_dir / "dataset_tabular.parquet", columns=["sample_idx", "time"]).drop_duplicates()
         tt = pd.to_datetime(tab["time"], utc=True, errors="coerce")
         spring_idx = tab.loc[tt.dt.month.isin([3, 4, 5]), "sample_idx"].to_numpy(dtype=np.int64)
         if len(spring_idx) > 0:
-            # keep training/validation unchanged; evaluate on full spring subset for showcase
-            test_idx = np.unique(spring_idx)
-            print(f"[{model_name}] evaluation test subset overridden to spring months, n={len(test_idx)}")
+            spring_idx = np.unique(spring_idx)
+            if test_subset in {"spring", "spring_3_5", "spring_strict_from_test"}:
+                # strict: filter within original test split only
+                test_idx = np.intersect1d(test_idx, spring_idx)
+                print(f"[{model_name}] strict spring subset from original test split, n={len(test_idx)}")
+            elif test_subset == "spring_holdout_strict":
+                # strict seasonal holdout: train/val exclude spring, test=spring
+                train_idx = np.setdiff1d(train_idx, spring_idx)
+                val_idx = np.setdiff1d(val_idx, spring_idx)
+                test_idx = spring_idx
+                print(
+                    f"[{model_name}] strict spring holdout split => train={len(train_idx)}, "
+                    f"val={len(val_idx)}, test={len(test_idx)}"
+                )
 
     train_loader, val_loader, test_loader = make_dataloaders(
         bundle,

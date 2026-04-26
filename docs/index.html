@@ -23,6 +23,7 @@
       <a href="#map">地图</a>
       <a href="#replay">回放</a>
       <a href="#results">结果</a>
+      <a href="#optimization">优化</a>
       <a href="#docs">文档</a>
     </nav>
   </header>
@@ -184,6 +185,32 @@
           <h3>事件级评估摘要</h3>
           <div id="eventSummary" class="event-grid"></div>
           <p class="tiny">结论：主模型在事件识别与概率输出上具备稳定优势。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="optimization" class="section">
+      <h2>模型优化与双方案</h2>
+      <div class="cards two">
+        <div class="card">
+          <h3>推荐方案</h3>
+          <div class="opt-grid">
+            <div class="opt-item">
+              <label>研究增强版</label>
+              <strong id="optResearch">-</strong>
+              <p>用于答辩主展示，强调多任务与解释能力。</p>
+            </div>
+            <div class="opt-item">
+              <label>业务落地版</label>
+              <strong id="optBusiness">-</strong>
+              <p>用于轻量部署，强调稳定与易集成。</p>
+            </div>
+          </div>
+          <p class="tiny" id="optStrictNote">-</p>
+        </div>
+        <div class="card">
+          <h3>优化实验对比</h3>
+          <div id="optTableWrap" class="opt-table-wrap"></div>
         </div>
       </div>
     </section>

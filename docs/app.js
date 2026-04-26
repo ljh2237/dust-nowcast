@@ -15,6 +15,14 @@ const RISK_LABELS = ['低风险', '中风险', '高风险', '极高风险'];
 
 function fmt(n, d = 3) { return Number(n).toFixed(d); }
 function riskColor(i) { return ['#22c55e', '#f59e0b', '#f97316', '#ef4444'][i] || '#60a5fa'; }
+function rampColor(v, min, max) {
+  const x = Math.max(0, Math.min(1, (v - min) / Math.max(1e-6, max - min)));
+  if (x < 0.25) return '#22c55e';
+  if (x < 0.5) return '#84cc16';
+  if (x < 0.75) return '#f59e0b';
+  if (x < 0.9) return '#f97316';
+  return '#ef4444';
+}
 function riskLabel(i) { return RISK_LABELS[i] || '未知'; }
 function riskBadgeClass(i) { return ['risk-low', 'risk-mid', 'risk-high', 'risk-ext'][i] || 'risk-mid'; }
 
@@ -110,6 +118,44 @@ function renderEventSummary() {
     ['阈值跨越F1', e.crossing_f1],
   ];
   wrap.innerHTML = items.map(([k, v]) => `<div class="event-item"><div class="name">${k}</div><div class="value">${fmt(v)}</div></div>`).join('');
+}
+
+function renderOptimizationPanel() {
+  const opt = state.data.optimization || {};
+  const rec = opt.recommendation || {};
+  document.getElementById('optResearch').textContent = rec.research_enhanced || 'dustriskformer';
+  document.getElementById('optBusiness').textContent = rec.business_lite || 'attn_tcn_lstm';
+  document.getElementById('optStrictNote').textContent = opt.strict_eval_note || '专项结果已按严格口径评估。';
+
+  const rows = (opt.experiments || []).filter((r) => r.experiment);
+  const top = rows.slice(0, 6);
+  const wrap = document.getElementById('optTableWrap');
+  if (!top.length) {
+    wrap.innerHTML = '<div class="tiny">暂无优化实验快照</div>';
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="table compact">
+      <thead>
+        <tr>
+          <th>实验</th>
+          <th>Risk-F1</th>
+          <th>Warn-F1</th>
+          <th>PR-AUC</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${top.map((r) => `
+          <tr>
+            <td>${r.experiment}</td>
+            <td>${r.risk_f1 === '' ? '-' : fmt(r.risk_f1)}</td>
+            <td>${r.warn_f1 === '' ? '-' : fmt(r.warn_f1)}</td>
+            <td>${r.warn_pr_auc === '' ? '-' : fmt(r.warn_pr_auc)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 function initStationSelects() {
@@ -223,10 +269,10 @@ function updateMapDetail(stationId, h) {
 function ensureLeafletMap() {
   if (state.mapObj) return;
   const map = L.map('mapChart', { zoomControl: true, attributionControl: true }).setView([38.2, 104.5], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 10,
     minZoom: 3,
-    attribution: '&copy; OpenStreetMap',
+    attribution: '&copy; OpenStreetMap & Carto',
   }).addTo(map);
   state.mapMarkers = L.layerGroup().addTo(map);
   state.mapObj = map;
@@ -243,12 +289,15 @@ function renderMap() {
   state.data.stations.forEach((s) => {
     const p = stationProfile(s.station_id, h);
     const v = mapValue(s, h, layer);
+    const fillColor = layer === 'risk'
+      ? riskColor(p.risk)
+      : (layer === 'warn' ? rampColor(p.warn, 0, 1) : rampColor(p.wind, 2, 18));
     const radius = layer === 'risk' ? 7 + p.risk * 3 : layer === 'warn' ? 7 + p.warn * 12 : 7 + Math.min(10, p.wind * 0.7);
     const marker = L.circleMarker([s.lat, s.lon], {
       radius,
       color: '#ffffff',
       weight: 1.2,
-      fillColor: riskColor(p.risk),
+      fillColor,
       fillOpacity: 0.88,
     });
     marker.bindPopup(
@@ -397,6 +446,7 @@ function onResize() {
   hydrateHero();
   renderModelCompare();
   renderEventSummary();
+  renderOptimizationPanel();
   initStationSelects();
   bindMapControls();
   bindReplayControls();

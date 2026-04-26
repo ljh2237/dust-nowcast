@@ -27,6 +27,22 @@
 - 可解释性：时间/空间注意力 + 特征重要性
 - 不确定性：MC Dropout 区间输出
 
+## 模型优化（严格评估版）
+- 研究增强版：`DustRiskFormer`（多任务重加权 + focal + 类别平衡）
+- 业务落地版：`Attention-TCN-LSTM`（轻量、稳定、易部署）
+- 严格评估口径：
+  - 总体：原始 test 集
+  - 春季专项（严格）：原始 test 集内筛选春季子集（若为空会明确标注）
+  - 春季留出（严格）：训练/验证剔除春季，春季独立测试
+- 优化结果文件：
+  - `results/optimization/experiment_summary.csv`
+  - `results/optimization/business_leaderboard.csv`
+  - `results/optimization/模型优化与必要性总结（最终版）.md`
+
+结论表达（答辩可用）：
+在“中国西北重点沙源区及其下游走廊、0-6 小时短临、预警触发与高风险识别”限定条件下，
+区域专项模型具备明确业务价值；系统定位为最后一公里辅助决策增强，不替代国家级业务预报。
+
 ## 产品页面
 Streamlit 产品端已包含：
 - 首页

@@ -12,8 +12,35 @@ def main() -> None:
     data_meta = json.loads((root / "data/processed/dataset_meta.json").read_text(encoding="utf-8"))
     metrics = json.loads((root / "results/metrics.json").read_text(encoding="utf-8"))
     event_summary = json.loads((root / "results/event_metrics_summary.json").read_text(encoding="utf-8"))
+    opt_csv = root / "results/optimization/experiment_summary.csv"
+    optimization_rows = []
+    recommend = {
+        "research_enhanced": "dustriskformer",
+        "business_lite": "attn_tcn_lstm",
+        "notes": "默认按业务指标与模型复杂度综合推荐。",
+    }
+    if opt_csv.exists():
+        opt_df = pd.read_csv(opt_csv)
+        optimization_rows = opt_df.fillna("").to_dict(orient="records")
+        valid = opt_df[opt_df["warn_pr_auc"].notna()].copy()
+        if not valid.empty:
+            # Prefer strict overall test experiments when choosing final display model
+            strict_overall = valid[~valid["experiment"].str.contains("spring_holdout", case=False, na=False)]
+            cand = strict_overall if not strict_overall.empty else valid
+            cand = cand.copy()
+            cand["biz_score"] = 0.45 * cand["risk_f1"] + 0.20 * cand["warn_f1"] + 0.35 * cand["warn_pr_auc"]
+            top_research = cand.sort_values("biz_score", ascending=False).iloc[0]
+            recommend["research_enhanced"] = str(top_research["experiment"])
 
-    detailed = pd.read_csv(root / "results/predictions_detailed_dustriskformer.csv")
+            lite = valid[valid["experiment"].str.contains("business_lite", case=False, na=False)]
+            if not lite.empty:
+                recommend["business_lite"] = str(lite.iloc[0]["experiment"])
+            else:
+                top_lite = valid.sort_values(["warn_f1", "risk_f1"], ascending=False).iloc[0]
+                recommend["business_lite"] = str(top_lite["experiment"])
+
+    base_snapshot = root / "results/optimization/exp_base_drf_predictions_detailed.csv"
+    detailed = pd.read_csv(base_snapshot if base_snapshot.exists() else root / "results/predictions_detailed_dustriskformer.csv")
     station_metrics = pd.read_csv(root / "results/station_level_metrics.csv")
     event_metrics = pd.read_csv(root / "results/event_level_metrics.csv")
 
@@ -75,6 +102,11 @@ def main() -> None:
         },
         "metrics": metrics,
         "event_summary": event_summary,
+        "optimization": {
+            "experiments": optimization_rows,
+            "recommendation": recommend,
+            "strict_eval_note": "春季专项优先采用严格口径：原始 test 内筛选或季节留出评估，避免泄漏。",
+        },
         "stations": stations,
         "base_profiles": base_profiles,
         "replay": replay,
@@ -86,7 +118,7 @@ def main() -> None:
     }
 
     out_path = root / "docs/assets/demo_data.json"
-    out_path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote {out_path}")
 
 
